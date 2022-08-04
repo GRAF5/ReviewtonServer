@@ -5,7 +5,7 @@ const util = require('gulp-util');
 const gls = require('gulp-live-server');
 const eslint = require('gulp-eslint');
 const mocha = require('gulp-mocha')({
-    timeout: 15000
+  timeout: 15000
 });
 
 function defaultTask(cb) {
@@ -33,7 +33,7 @@ function codeStyle(cb) {
   cb();
 }
 
-function unit(cb) {
+function unit() {
   process.env.NODE_ENV = 'test';
 
   const path = `app/**/${util.env.tags || '*.spec.{js,es6}'}`;
