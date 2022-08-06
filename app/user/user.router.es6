@@ -8,15 +8,15 @@ export default class UserRouter {
     this._userService = userService;
   }
 
-      /**
-       * @swagger
-       * /test:
-       *   get:
-       *     description: Welcome to swagger-jsdoc!
-       *     responses:
-       *       200:
-       *         description: Returns a mysterious string.
-       */
+  /**
+   * @swagger
+   * /test:
+   *   get:
+   *     description: Welcome to swagger-jsdoc!
+   *     responses:
+   *       200:
+   *         description: Returns a mysterious string.
+   */
   router() {
     const router = express.Router();
     router.route('/test')

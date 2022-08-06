@@ -103,10 +103,10 @@ export default class Service {
         openapi: '3.0.0',
         info: {
           title: 'Reviewton',
-          version: '1.0.0',
-        },
+          version: '1.0.0'
+        }
       },
-      apis: ['app/*/*.router.es6'],
+      apis: ['app/*/*.router.es6']
     };
     this._server.use('/api-docs', swagger.serve, swagger.setup(swaggerJSDoc(swaggerOptions)));
   }
