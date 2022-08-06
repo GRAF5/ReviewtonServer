@@ -2,10 +2,13 @@
 
 import { createContainer, asClass, InjectionMode, asValue } from 'awilix';
 import express from 'express';
+import swagger from 'swagger-ui-express';
+import swaggerJSDoc from 'swagger-jsdoc';
 import log4js from 'log4js';
 import path from 'path';
 import fs from 'fs';
-import UserController from './user/user.controller.es6';
+import cors from 'cors';
+import UserService from './user/user.service.es6';
 import UserRouter from './user/user.router.es6';
 import UserModel from './user/user.model.es6';
 import Database from './db/database.es6';
@@ -60,7 +63,7 @@ export default class Service {
   registerServices() {
     this._container.register({
       config: asValue(config),
-      userController: asClass(UserController),
+      userService: asClass(UserService),
       userRouter: asClass(UserRouter),
       userModel: asClass(UserModel)
     });
@@ -86,10 +89,26 @@ export default class Service {
     this._server = express();
     this.registerServices();
     this.registerRouters();
+    this._server.use(express.urlencoded({extended: false, limit: '50mb'}));
+    this._server.use(express.json({limit: '50mb'}));
+    this._server.use(express.text({limit: '50mb'}));
+    this._server.use(cors());
     this._routers.forEach((router) => {
       this._server.use(router.url, router.provider(this._container));
     });
 
+    const swaggerOptions = {     
+      failOnErrors: true, // Whether or not to throw when parsing errors. Defaults to false.
+      definition: {
+        openapi: '3.0.0',
+        info: {
+          title: 'Reviewton',
+          version: '1.0.0'
+        }
+      },
+      apis: ['app/*/*.router.es6']
+    };
+    this._server.use('/api-docs', swagger.serve, swagger.setup(swaggerJSDoc(swaggerOptions)));
   }
   
   _addRouter(url, provider) {
@@ -110,7 +129,7 @@ export default class Service {
 
   // eslint-disable-next-line complexity
   _configureLogs() {
-    let logPath = path.join('../', 'logs', 'application.log');
+    let logPath = path.join('logs', 'application.log');
     let logDirPath = path.dirname(logPath);
     if (!fs.existsSync(logDirPath)) {
       fs.mkdirSync(logDirPath);
