@@ -12,7 +12,7 @@ export default class Database {
    * Constructs database class
    * @param {Object} param0.config config 
    */
-  constructor({config}) {
+  constructor(config) {
     this._config = config;
     this._logger = log4js.getLogger('Databese');
   }
@@ -54,6 +54,20 @@ export default class Database {
           resolve();
         }
       });
+    });
+  }
+
+  async clear() {
+    await new Promise((resolve, reject) => {
+      mongoose.modelNames().forEach(name => {
+        mongoose.models[name].deleteMany({}, (err) => {
+          if (err) {
+            this._logger.error('Error while clear db', err);
+            reject(err);
+          }
+        });
+      });
+      resolve();
     });
   }
 }

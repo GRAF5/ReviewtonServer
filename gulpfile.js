@@ -5,13 +5,16 @@ const util = require('gulp-util');
 const gls = require('gulp-live-server');
 const eslint = require('gulp-eslint');
 const mocha = require('gulp-mocha')({
-  timeout: 15000
+  timeout: 15000,
+  require: '@babel/register',
+  exit: true
 });
 
 function defaultTask(cb) {
   console.log('Usage: gulp');
   console.log('\tserver - s - run dev server');
-  console.log('s - check code style');
+  console.log('\ts - check code style');
+  console.log('\tunit - start unit tests, --tags filename to start selected tests');
   cb();
 }
 function serverTask(cb) {
@@ -38,8 +41,7 @@ function unit() {
 
   const path = `app/**/${util.env.tags || '*.spec.{js,es6}'}`;
   return gulp.src(path, {read: false})
-    .pipe(mocha)
-    .once('end', exitCode => setTimeout(process.exit.bind(null, exitCode), 1000));
+    .pipe(mocha);
 }
 
 exports.default = defaultTask;
