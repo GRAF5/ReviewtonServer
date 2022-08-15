@@ -2,6 +2,7 @@
 
 import { createContainer, asClass, InjectionMode, asValue } from 'awilix';
 import express from 'express';
+import { expressjwt } from 'express-jwt';
 import swagger from 'swagger-ui-express';
 import swaggerJSDoc from 'swagger-jsdoc';
 import log4js from 'log4js';
@@ -12,6 +13,7 @@ import UserService from './user/user.service.es6';
 import UserRouter from './user/user.router.es6';
 import UserModel from './user/user.model.es6';
 import Database from './db/database.es6';
+import * as errorHandlerModule from './errorHandler/errorHandler.es6';
 
 const config = require('./config.js');
 
@@ -34,13 +36,14 @@ export default class Service {
   /**
    * Start server service
    */
-  async start() {
-    this._configureLogs();
-    this._initServer();
-    this.connectDB()
+  async start(conf) {
+    conf = conf || config;
+    this._configureLogs(conf);
+    this._initServer(conf);
+    this.connectDB(conf)
       .then(() => {
-        this._server.listen(config.port, () => {
-          this._logger.info(`Server listening on ${config.port}`);
+        this._server.listen(conf.port, () => {
+          this._logger.info(`Server listening on ${conf.port}`);
         });
         this._registerShutdown();
       });
@@ -55,14 +58,15 @@ export default class Service {
     if (this._db) {
       this._db.disconnect();
     }
+    await this._container.dispose();
   }
 
   /**
    * Register services with Dependency injection framework
    */
-  registerServices() {
+  registerServices(conf) {
     this._container.register({
-      config: asValue(config),
+      config: asValue(conf),
       userService: asClass(UserService),
       userRouter: asClass(UserRouter),
       userModel: asClass(UserModel)
@@ -76,19 +80,27 @@ export default class Service {
     this._addRouter('/', container => container.resolve('userRouter').router());
   }
 
-  connectDB() {
-    if (config.db) {
-      this._db = new Database({config});
+  /**
+   * Connect server to database
+   * @returns {Promise}
+   */
+  connectDB(conf) {
+    if (conf.db) {
+      this._db = new Database(conf);
       return this._db.connect();
     } else {
       return Promise.resolve();
     }
   }
 
-  _initServer() {
+  /**
+   * Init server middleware, routers, swagger and error handler
+   */
+  _initServer(conf) {
     this._server = express();
-    this.registerServices();
+    this.registerServices(conf);
     this.registerRouters();
+    this._server.use(this._jwt(conf));
     this._server.use(express.urlencoded({extended: false, limit: '50mb'}));
     this._server.use(express.json({limit: '50mb'}));
     this._server.use(express.text({limit: '50mb'}));
@@ -109,8 +121,15 @@ export default class Service {
       apis: ['app/*/*.router.es6']
     };
     this._server.use('/api-docs', swagger.serve, swagger.setup(swaggerJSDoc(swaggerOptions)));
+
+    this._server.use(errorHandlerModule.errorHandler);
   }
   
+  /**
+   * Add router to init
+   * @param {String} url router url
+   * @param {Router} provider 
+   */
   _addRouter(url, provider) {
     this._routers.push({
       url,
@@ -118,6 +137,9 @@ export default class Service {
     });
   }
 
+  /**
+   * Override server shutdown procces
+   */
   _registerShutdown() {
     let shutdown = () => this.stop()
       .then(() => this._logger.info('Server stopped, terminating...'))
@@ -127,8 +149,33 @@ export default class Service {
     process.on('SIGINT', shutdown);
   }
 
+  /**
+   * JWT middleware
+   * @returns {Promise} jwt middleware
+   */
+  _jwt(conf) {
+    const secret = conf.secret;
+    let isRevoked = async (req, res, next) => {
+      const user = this._container.getRegistration('userService').getById(res.sub);
+      if (!user) {
+        return next(null, true);
+      }
+      next();
+    };
+    return expressjwt({secret, algorithms: ['HS256'], isRevoked}).unless({
+      // public routes that don't require authentication
+      path: [
+        '/user/register',
+        '/user/authenticate'
+      ]
+    });
+  }
+
+  /**
+   * Configure log4js service
+   */
   // eslint-disable-next-line complexity
-  _configureLogs() {
+  _configureLogs(conf) {
     let logPath = path.join('logs', 'application.log');
     let logDirPath = path.dirname(logPath);
     if (!fs.existsSync(logDirPath)) {
@@ -139,7 +186,7 @@ export default class Service {
         type: 'dateFile',
         filename: logPath,
         pattern: 'yyyy-MM-dd',
-        numBackups: (config.log4js || {}).backups || 1,
+        numBackups: (conf.log4js || {}).backups || 1,
         keepFileExt: true,
         timezoneOffset: 0
       }
@@ -152,10 +199,10 @@ export default class Service {
     const categories = {
       default: {
         appenders: defaultAppenders,
-        level: log4js.levels[(config.log4js || {}).defaultLevel || 'INFO']
+        level: log4js.levels[(conf.log4js || {}).defaultLevel || 'INFO']
       }
     };
-    const configLevels = ((config.log4js || {}).levels || {});
+    const configLevels = ((conf.log4js || {}).levels || {});
     Object.keys(configLevels).forEach((category) => {
       categories[category] = {
         appenders: defaultAppenders,
