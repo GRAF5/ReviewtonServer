@@ -2,11 +2,21 @@
 
 import jwt from 'jsonwebtoken';
 import log4js from 'log4js';
+import { v4 } from 'uuid';
 import { UnauthorizedError } from '../errorHandler/errorHandler.es6';
 import { ValidationError } from '../errorHandler/errorHandler.es6';
 
+/**
+ * Class for users requests
+ */
 export default class UserService {
 
+  /**
+   * User service constructor
+   * @param param0 
+   * @param {Config} param0.config server config
+   * @param {UserModel} param0.userModel user model
+   */
   constructor({config, userModel}) {
     this._config = config;
     this._userModel = userModel.User;
@@ -28,7 +38,7 @@ export default class UserService {
       } else if (await this._userModel.findOne({login: req.body.login})) {
         errors.push({
           arg: 'login',
-          message: 'Вказати ім\'я користувача вже зайнято'
+          message: 'Вказане ім\'я користувача вже зайнято'
         });
       }
       if (!req.body.email) {
@@ -89,9 +99,10 @@ export default class UserService {
       }
 
       const {salt, hash} = await this._userModel.createHash(req.body.password);
-      let user = new this._userModel({salt, hash, ...req.body});
-      user.save();
-      res.status(200).json({ id: user.id });
+      const _id = v4();
+      let user = new this._userModel({...req.body, salt, hash, _id});
+      await user.save();
+      res.status(200).json({_id});
     } catch (err) {
       this._logger.error('Error while register', err);
       next(err);
