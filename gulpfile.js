@@ -13,7 +13,7 @@ const mocha = require('gulp-mocha')({
 function defaultTask(cb) {
   console.log('Usage: gulp');
   console.log('\tserver - s - run dev server');
-  console.log('\ts - check code style');
+  console.log('\tcs - check code style');
   console.log('\tunit - start unit tests, --tags filename to start selected tests');
   cb();
 }
@@ -29,10 +29,14 @@ function serverTask(cb) {
 }
 
 function codeStyle(cb) {
-  gulp.src(['**/*.{js,es6}', '!**/public/**', '!**/node_modules/**', '!**/jsdoc/**', '!**/coverage/**', 
-    '!**/compiled/**'])
+  gulp.src(['**/*.{js,es6}', '!**/node_modules/**'])
     .pipe(eslint())
-    .pipe(eslint.format());
+    .pipe(eslint.format())
+    .on('data', function(file) {
+      if (file.eslint.messages && file.eslint.messages.length) {
+        gulp.fail = true;
+      }
+    });
   cb();
 }
 

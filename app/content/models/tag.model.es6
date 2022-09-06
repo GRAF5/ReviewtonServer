@@ -1,7 +1,6 @@
 'use strict';
 
-import mongoose from "mongoose";
-import { v4 } from 'uuid';
+import mongoose from 'mongoose';
 
 /**
  * Mongoose tag model

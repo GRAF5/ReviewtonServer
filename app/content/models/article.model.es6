@@ -1,7 +1,6 @@
 'use strict';
 
-import mongoose, { Schema } from "mongoose";
-import { v4 } from 'uuid';
+import mongoose, { Schema } from 'mongoose';
 
 /**
  * Mongoose article model

@@ -9,42 +9,42 @@ import crypto from 'crypto';
 export default class UserModel {
 
   constructor() {
-      const fields = {
-        _id: {type: String, required: true},
-        login: {type: String, required: true},
-        email: {type: String, required: true},
-        hash: {type: String, required: true},
-        salt: {type: String, required: true},
-        articles: [{type: Schema.Types.ObjectId, ref: 'Article'}],
-        comments: [{type: Schema.Types.ObjectId, ref: 'Comment'}],
-      };
-      const schema = new mongoose.Schema(fields);
-      schema.set('validateBeforeSave', false);
-      schema.statics.createHash = function(password) {
-        return new Promise((res, rej) => {
-          let salt = crypto.randomBytes(16).toString('hex');
-          let hash;
-          crypto.scrypt(password, salt, 64, (err, key) => {
-            if (err) {
-              rej(err);
-            }
-            hash = key.toString('hex');
-            res({salt, hash});
-          });
+    const fields = {
+      _id: {type: String, required: true},
+      login: {type: String, required: true},
+      email: {type: String, required: true},
+      hash: {type: String, required: true},
+      salt: {type: String, required: true},
+      articles: [{type: Schema.Types.ObjectId, ref: 'Article'}],
+      comments: [{type: Schema.Types.ObjectId, ref: 'Comment'}]
+    };
+    const schema = new mongoose.Schema(fields);
+    schema.set('validateBeforeSave', false);
+    schema.statics.createHash = function(password) {
+      return new Promise((res, rej) => {
+        let salt = crypto.randomBytes(16).toString('hex');
+        let hash;
+        crypto.scrypt(password, salt, 64, (err, key) => {
+          if (err) {
+            rej(err);
+          }
+          hash = key.toString('hex');
+          res({salt, hash});
         });
-      };
-      schema.statics.verify = function(password, salt, hash) {
-        return new Promise((res, rej) => {
-          const key = Buffer.from(hash, 'hex');
-          crypto.scrypt(password, salt, 64, (err, derivedKey) => {
-            if (err) {
-              rej(err);
-            }
-            res(crypto.timingSafeEqual(key, derivedKey)); 
-          });
+      });
+    };
+    schema.statics.verify = function(password, salt, hash) {
+      return new Promise((res, rej) => {
+        const key = Buffer.from(hash, 'hex');
+        crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+          if (err) {
+            rej(err);
+          }
+          res(crypto.timingSafeEqual(key, derivedKey)); 
         });
-      };
-      this._model = mongoose.model('User', schema);
+      });
+    };
+    this._model = mongoose.model('User', schema);
   }
 
   get User() {

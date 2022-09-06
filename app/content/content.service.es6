@@ -49,13 +49,7 @@ export default class ContentService {
       subjects = subjects.map(el => el._id);
       let users = await this._userModel.find({ login: {$regex: name} }).select('_id');
       users = users.map(el => el._id);
-      //let articlesB = await this._subjectModel.getArticlesBySubjectName(name);
       let articles = await this._articleModel.getAllOrBySubjectOrUser(subjects, users);
-      //console.log(articles);
-      //articles[0] = await this._articleModel.findById(articles[0]);
-      //console.log(articles);
-      //articles = articles.map(async (id)=> {return await this._articleModel.findById(id).exec()});
-      //let articles = await this._articleModel.getArticlesOrderedByTime(name, limit, offset);
       return res.status(200).json({articles});
     } catch (err) {
       this._logger.error('Error while getting articles', err);

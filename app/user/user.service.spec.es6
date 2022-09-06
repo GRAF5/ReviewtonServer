@@ -91,7 +91,7 @@ describe('UserService', () => {
         login: 'anotherLogin',
         salt: 'salt',
         hash: 'hash'
-      }
+      };
       await mongoose.models['User'].create(user);
       await request(server)
         .post('/user/register')
@@ -193,7 +193,8 @@ describe('UserService', () => {
         email: 'test@test.com',
         login: 'login',
         salt: 'e2996430759b75a241dcdc846605c227',
-        hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310',
+        // eslint-disable-next-line max-len
+        hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
         //password: 'QwerTY123456'
       };
       mongoose.models['User'].create(user);

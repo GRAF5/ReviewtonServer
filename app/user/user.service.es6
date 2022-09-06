@@ -131,7 +131,8 @@ export default class UserService {
         throw new ValidationError('Register error', errors);
       }
       
-      const user = await this._userModel.findOne({login: req.body.credentials}) || await this._userModel.findOne({email: req.body.credentials});
+      const user = await this._userModel.findOne(
+        {login: req.body.credentials}) || await this._userModel.findOne({email: req.body.credentials});
       if (user && await this._userModel.verify(req.body.password, user.salt, user.hash)) {
         const token = jwt.sign({sub: user.id}, this._config.secret, { expiresIn: '7d'});
         res.status(200).json({ token, id: user.id, login: user.login, email: user.email});
