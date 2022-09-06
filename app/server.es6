@@ -14,6 +14,12 @@ import UserRouter from './user/user.router.es6';
 import UserModel from './user/user.model.es6';
 import Database from './db/database.es6';
 import * as errorHandlerModule from './errorHandler/errorHandler.es6';
+import ArticleModel from './content/models/article.model.es6';
+import CommentModel from './content/models/comment.model.es6';
+import TagModel from './content/models/tag.model.es6';
+import SubjectModel from './content/models/subject.model.es6';
+import ContentRouter from './content/content.router.es6';
+import ContentService from './content/content.service.es6';
 
 const config = require('./config.js');
 
@@ -40,7 +46,7 @@ export default class Service {
     conf = conf || config;
     this._configureLogs(conf);
     this._initServer(conf);
-    this.connectDB(conf)
+    await this.connectDB(conf)
       .then(() => {
         this._server.listen(conf.port, () => {
           this._logger.info(`Server listening on ${conf.port}`);
@@ -56,7 +62,7 @@ export default class Service {
     this._server = null;
     this._routers = [];
     if (this._db) {
-      this._db.disconnect();
+      await this._db.disconnect();
     }
     await this._container.dispose();
   }
@@ -67,9 +73,15 @@ export default class Service {
   registerServices(conf) {
     this._container.register({
       config: asValue(conf),
-      userService: asClass(UserService),
-      userRouter: asClass(UserRouter),
-      userModel: asClass(UserModel)
+      userService: asClass(UserService).singleton(),
+      userRouter: asClass(UserRouter).singleton(),
+      userModel: asClass(UserModel).singleton(),
+      articleModel: asClass(ArticleModel).singleton(),
+      commentModel: asClass(CommentModel).singleton(),
+      tagModel: asClass(TagModel).singleton(),
+      subjectModel: asClass(SubjectModel).singleton(),
+      сontentRouter: asClass(ContentRouter).singleton(),
+      contentService: asClass(ContentService).singleton()
     });
   }
 
@@ -78,6 +90,7 @@ export default class Service {
    */
   registerRouters() {
     this._addRouter('/', container => container.resolve('userRouter').router());
+    this._addRouter('/', container => container.resolve('сontentRouter').router());
   }
 
   /**
@@ -166,7 +179,9 @@ export default class Service {
       // public routes that don't require authentication
       path: [
         '/user/register',
-        '/user/authenticate'
+        '/user/authenticate',
+        '/content/articles',
+        /api-docs.*/
       ]
     });
   }

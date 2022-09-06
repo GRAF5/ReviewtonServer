@@ -58,14 +58,25 @@ export default class Database {
   }
 
   async clear() {
-    await new Promise((resolve, reject) => {
-      mongoose.modelNames().forEach(name => {
-        mongoose.models[name].deleteMany({}, (err) => {
-          if (err) {
-            this._logger.error('Error while clear db', err);
-            reject(err);
-          }
+    if (mongoose.connection.readyState) {
+      await new Promise((resolve, reject) => {
+        mongoose.modelNames().forEach(name => {
+          mongoose.models[name].deleteMany({}, (err) => {
+            if (err) {
+              this._logger.error('Error while clear db', err);
+              reject(err);
+            }
+          });
         });
+        resolve();
+      });
+    }
+  }
+
+  async delete() {
+    await new Promise((resolve) => {
+      mongoose.modelNames().forEach(name => {
+        delete mongoose.connection.models[name];
       });
       resolve();
     });

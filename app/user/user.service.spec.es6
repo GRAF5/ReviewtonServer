@@ -32,12 +32,13 @@ describe('UserService', () => {
     server = app._server;
   });
 
-  beforeEach(async () => {
-    app._db.clear();
+  afterEach(async () => {
+    await app._db.clear();
   });
 
   after(async () => {
     await app.stop();
+    await app._db.clear();
     sandbox.restore();
   });
 
@@ -48,13 +49,14 @@ describe('UserService', () => {
 
     let userParam;
     
-    beforeEach(() => {
+    beforeEach(async () => {
       userParam = {
         login: 'test',
         email: 'test@test.com',
         password: 'QwerTY123456',
         passwordRepeat: 'QwerTY123456'
       };
+      await app._db.clear();
     });
 
     it('should return login validation error when login is undefined', async () => {
@@ -68,12 +70,13 @@ describe('UserService', () => {
 
     it('should return login validation error when user with same login already exist', async () => {
       const user = {
+        _id: '1',
         email: 'another@mail.com',
         login: userParam.login,
         salt: 'salt',
         hash: 'hash'
-      }
-      mongoose.models['User'].create(user);
+      };
+      await mongoose.models['User'].create(user);
       await request(server)
         .post('/user/register')
         .send(userParam)
@@ -83,12 +86,13 @@ describe('UserService', () => {
 
     it('should return login validation error when user with same email already exist', async () => {
       const user = {
+        _id: '1',
         email: userParam.email,
         login: 'anotherLogin',
         salt: 'salt',
         hash: 'hash'
-      }
-      mongoose.models['User'].create(user);
+      };
+      await mongoose.models['User'].create(user);
       await request(server)
         .post('/user/register')
         .send(userParam)
@@ -185,10 +189,12 @@ describe('UserService', () => {
 
     beforeEach(async () => {
       const user = {
+        _id: '1',
         email: 'test@test.com',
         login: 'login',
         salt: 'e2996430759b75a241dcdc846605c227',
-        hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310',
+        // eslint-disable-next-line max-len
+        hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
         //password: 'QwerTY123456'
       };
       mongoose.models['User'].create(user);
