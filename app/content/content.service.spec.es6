@@ -79,9 +79,9 @@ describe('ContentService', () => {
         .end();
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, __v: 0},
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[], __v: 0},
         {_id: '2', rating: 5, text: 'Test 2', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, __v: 0}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[], __v: 0}]}));
     });
     
     it('should get articles ordered by create time', async () => {
@@ -102,11 +102,11 @@ describe('ContentService', () => {
         .end();
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '2', rating: 5, text: 'Test 2', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, __v: 0},
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[], __v: 0},
         {_id: '3', rating: 5, text: 'Test 3', 
-          createTime: '2022-09-03T16:38:04.447Z', user: user._id, subject: subject._id, __v: 0},
+          createTime: '2022-09-03T16:38:04.447Z', user: user._id, subject: subject._id, tags:[], __v: 0},
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:03.447Z', user: user._id, subject: subject._id, __v: 0}]}));
+          createTime: '2022-09-03T16:38:03.447Z', user: user._id, subject: subject._id, tags:[], __v: 0}]}));
     });
 
     it('should get articles by subjects name', async () => {
@@ -134,24 +134,28 @@ describe('ContentService', () => {
         .end();
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject1._id, __v: 0},
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject1._id, tags:[], __v: 0},
         {_id: '2', rating: 5, text: 'Test 2', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject2._id, __v: 0}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject2._id, tags:[], __v: 0}]}));
     });
 
     it('should get articles by tag name', async () => {
       let user = await new mongoose.models['User'](userParams).save();
       let tag1 = await new mongoose.models['Tag']({ _id: '1', name: 'Tag1'}).save();
       let tag2 = await new mongoose.models['Tag']({ _id: '2', name: 'Tag2'}).save();
-      let subject1 = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject 1', tags: [tag1._id]}).save();
-      let subject2 = await new mongoose.models['Subject']({ _id: '2', name: 'Test subject 2', tags: [tag2._id]}).save();
+      let subject1 = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject 1'}).save();
+      let subject2 = await new mongoose.models['Subject']({ _id: '2', name: 'Test subject 2'}).save();
       let date = Date.now();
       let article1 = await new mongoose.models['Article'](
-        {_id: '1', rating: 5, text: 'Test 1', createTime: date, user: user._id, subject: subject1._id}).save();
+        {
+          _id: '1', rating: 5, text: 'Test 1', 
+          createTime: date, user: user._id, subject: subject1._id, tags: [tag1._id]}).save();
       subject1.articles.push(article1._id);
       subject1 = await subject1.save();
       let article2 = await new mongoose.models['Article'](
-        {_id: '2', rating: 5, text: 'Test 2', createTime: date, user: user._id, subject: subject2._id}).save();
+        {
+          _id: '2', rating: 5, text: 'Test 2', 
+          createTime: date, user: user._id, subject: subject2._id, tags: [tag2._id]}).save();
       subject2.articles.push(article2._id);
       subject2 = await subject2.save();
       let res = await request(server)
@@ -161,7 +165,7 @@ describe('ContentService', () => {
         .end();
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject1._id, __v: 0}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject1._id, tags:[tag1._id], __v: 0}]}));
     });
 
     it('should get articles by user login', async () => {
@@ -185,7 +189,7 @@ describe('ContentService', () => {
         .end();
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user1._id, subject: subject1._id, __v: 0}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user1._id, subject: subject1._id, tags:[], __v: 0}]}));
     });
   });
 });
