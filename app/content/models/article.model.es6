@@ -14,19 +14,33 @@ export default class ArticleModel {
       text: {type: String, required: true},
       createTime: {type: Date, required: true},
       user: {type: Schema.Types.String, ref: 'User', required: true},
-      subject: {type: Schema.Types.String, ref: 'Subject', required: true}
+      subject: {type: Schema.Types.String, ref: 'Subject', required: true},
+      tags: [{type: Schema.Types.String, ref: 'Tag'}]
+
     };
     const schema = new mongoose.Schema(fields);
     schema.statics.getAllOrBySubjectOrUser = getAllOrBySubjectOrUser;
     this._model = mongoose.model('Article', schema);
 
-    async function getAllOrBySubjectOrUser(subjects, users, limit, offset) {
+    /**
+     * Get all articles or by subjects or users or tags
+     * @param {Array<String>} subjects array of subjects id
+     * @param {Array<String>} users array of users id
+     * @param {Array<String>} tags array of tags id
+     * @param {Number} limit pagination limit 
+     * @param {Number} offset pagination offset
+     * @returns 
+     */
+    async function getAllOrBySubjectOrUser(subjects = [], users = [], tags = [], limit = 25, offset = 0) {
       let rules = [];
       if (subjects.length) {
         rules.push({subject: {$in: subjects}});
       }
       if (users.length) {
         rules.push({user: {$in: users}});
+      }
+      if (tags.length) {
+        rules.push({tags});
       }
       let filter = rules.length ? {$or: rules} : {};
       return await this.find(filter)
