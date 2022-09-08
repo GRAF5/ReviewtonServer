@@ -19,7 +19,7 @@ export default class ArticleModel {
 
     };
     const schema = new mongoose.Schema(fields);
-    schema.statics.getAllOrBySubjectOrUser = getAllOrBySubjectOrUser;
+    schema.statics.getAllOrBySubjectOrUserOrTags = getAllOrBySubjectOrUserOrTags;
     this._model = mongoose.model('Article', schema);
 
     /**
@@ -31,7 +31,7 @@ export default class ArticleModel {
      * @param {Number} offset pagination offset
      * @returns 
      */
-    async function getAllOrBySubjectOrUser(subjects = [], users = [], tags = [], limit = 25, offset = 0) {
+    async function getAllOrBySubjectOrUserOrTags(subjects = [], users = [], tags = [], limit = 25, offset = 0) {
       let rules = [];
       if (subjects.length) {
         rules.push({subject: {$in: subjects}});

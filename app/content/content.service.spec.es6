@@ -57,7 +57,7 @@ describe('ContentService', () => {
    */
   describe('getArticles', () => {
 
-    it('should get empty array if there not articles', async () => {
+    it('should get empty array if there no articles', async () => {
       let res = await request(server)
         .get('/content/articles')
         .expect(200)
@@ -190,6 +190,76 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
           createTime: '2022-09-03T16:38:05.447Z', user: user1._id, subject: subject1._id, tags:[], __v: 0}]}));
+    });
+  });
+
+  describe('getTags', () =>{
+    it('should get empty array if there no tags', async () => {
+      let res = await request(server)
+        .get('/content/tags')
+        .expect(200)
+        .end();
+      res.text.should.be.eql(JSON.stringify({tags: []}));
+    });
+    
+    it('should get all tags if name not defined', async () => {
+      await new mongoose.models['Tag']({ _id: '1', name: 'Tag1'}).save();
+      await new mongoose.models['Tag']({ _id: '2', name: 'Tag2'}).save();
+      let res = await request(server)
+        .get('/content/tags')
+        .query({name: 'Tag1'})
+        .expect(200)
+        .end();
+      res.text.should.be.eql(JSON.stringify({tags: [
+        {_id: '1', name: 'Tag1', articles:[]}]}));
+    });
+
+    
+    it('should get tags ordered by articles count', async () => {
+      let user = await new mongoose.models['User'](userParams).save();
+      let tag1 = await new mongoose.models['Tag']({ _id: '1', name: 'Tag1'}).save();
+      let tag2 = await new mongoose.models['Tag']({ _id: '2', name: 'Tag2'}).save();
+      let tag3 = await new mongoose.models['Tag']({ _id: '3', name: 'Tag3'}).save();
+      let subject = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject'}).save();
+      let date = Date.now() - 2000;
+      let article1 = await new mongoose.models['Article'](
+        {
+          _id: '1', rating: 5, text: 'Test 1', 
+          createTime: date, user: user._id, subject: subject._id, tags:[tag1._id, tag2._id, tag3._id]}).save();
+      let article2 = await new mongoose.models['Article'](
+        {
+          _id: '2', rating: 5, text: 'Test 2', 
+          createTime: date, user: user._id, subject: subject._id, tags:[tag2._id, tag3._id]}).save();
+      let article3 = await new mongoose.models['Article'](
+        {
+          _id: '3', rating: 5, text: 'Test 3', 
+          createTime: date, user: user._id, subject: subject._id, tags:[tag2._id]}).save();
+      tag1.articles.push(article1._id);
+      tag2.articles.push(article1._id, article2._id, article3._id);
+      tag3.articles.push(article1._id, article2._id);
+      tag1.save();
+      tag2.save();
+      tag3.save();
+      let res = await request(server)
+        .get('/content/tags')
+        .expect(200)
+        .end();
+      res.text.should.be.eql(JSON.stringify({tags: [
+        { _id: '2', name: 'Tag2', articles:[article1._id, article2._id, article3._id]},
+        { _id: '3', name: 'Tag3', articles:[article1._id, article2._id]},
+        { _id: '1', name: 'Tag1', articles:[article1._id]}]}));
+    });
+    
+    it('should get tags by name', async () => {
+      await new mongoose.models['Tag']({ _id: '1', name: 'Tag1'}).save();
+      await new mongoose.models['Tag']({ _id: '2', name: 'Tag2'}).save();
+      let res = await request(server)
+        .get('/content/tags')
+        .expect(200)
+        .end();
+      res.text.should.be.eql(JSON.stringify({tags: [
+        {_id: '1', name: 'Tag1', articles:[]},
+        {_id: '2', name: 'Tag2', articles:[]}]}));
     });
   });
 });
