@@ -181,6 +181,7 @@ export default class Service {
         '/user/register',
         '/user/authenticate',
         '/content/articles',
+        '/content/tags',
         /api-docs.*/
       ]
     });

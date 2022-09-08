@@ -33,25 +33,45 @@ export default class ContentService {
   async getArticles(req, res, next) {
     try {
       let name = req.query.name || '';
-      let limit = req.query.limit ? +((+req.query.limit).toFixed()) : 25;
-      let offset = req.query.offset ? +((+req.query.offset).toFixed()) : 0;
-      if (limit < 1) {
-        limit = 1;
-      }
-      if (limit > 25) {
-        limit = 25;
-      }
-      if (offset < 0) {
-        offset = 0;
-      }
+      const {limit, offset} = this._checkPagination(req);
       const tags = await this._tagModel.find({ name: {$regex: name}}).select('_id');
       const subjects = await this._subjectModel.getIdsByName(name);
       const users = await this._userModel.find({ login: {$regex: name} }).select('_id');
-      let articles = await this._articleModel.getAllOrBySubjectOrUser(subjects, users, tags, limit, offset);
+      let articles = await this._articleModel.getAllOrBySubjectOrUserOrTags(subjects, users, tags, limit, offset);
       return res.status(200).json({articles});
     } catch (err) {
       this._logger.error('Error while getting articles', err);
       next(err);
     }
+  }
+
+  /**
+   * Gat tags ordered by articles count
+   */
+  async getTags(req, res, next) {
+    try {
+      let name = req.query.name || '';
+      const {limit, offset} = this._checkPagination(req);
+      let tags = await this._tagModel.getTags(name, limit, offset);
+      return res.status(200).json({tags});
+    } catch (err) {
+      this._logger.error('Error while getting tags', err);
+      next(err);
+    }
+  }
+
+  _checkPagination(req) {
+    let limit = req.query.limit ? +((+req.query.limit).toFixed()) : 25;
+    let offset = req.query.offset ? +((+req.query.offset).toFixed()) : 0;
+    if (limit < 1) {
+      limit = 1;
+    }
+    if (limit > 25) {
+      limit = 25;
+    }
+    if (offset < 0) {
+      offset = 0;
+    }
+    return {limit, offset};
   }
 }
