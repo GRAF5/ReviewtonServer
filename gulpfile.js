@@ -9,6 +9,7 @@ const mocha = require('gulp-mocha')({
   require: '@babel/register',
   exit: true
 });
+const cover = require('gulp-spawn-mocha-nyc/lib');
 
 function defaultTask(cb) {
   console.log('Usage: gulp');
@@ -18,8 +19,8 @@ function defaultTask(cb) {
   cb();
 }
 function serverTask(cb) {
-  const path = './app/app.js';
-  const server = gls.new(path);
+  const paths = './app/app.js';
+  const server = gls.new(paths);
   server.start();
   gulp.watch('/**.*.{js,es6}', function(done) {
     server.start();
@@ -29,7 +30,7 @@ function serverTask(cb) {
 }
 
 function codeStyle(cb) {
-  gulp.src(['**/*.{js,es6}', '!**/node_modules/**'])
+  gulp.src(['**/*.{js,es6}', '!**/node_modules/**', '!**/coverage/**'])
     .pipe(eslint())
     .pipe(eslint.format())
     .on('data', function(file) {
@@ -43,9 +44,28 @@ function codeStyle(cb) {
 function unit() {
   process.env.NODE_ENV = 'test';
 
-  const path = `app/**/${util.env.tags || '*.spec.{js,es6}'}`;
-  return gulp.src(path, {read: false})
+  const paths = `app/**/${util.env.tags || '*.spec.{js,es6}'}`;
+  return gulp.src(paths, {read: false})
     .pipe(mocha);
+}
+
+function coverage() {
+  const paths = ['app/**/*.spec.{js,es6}', '!**/node_modules/**', '!**/coverage/**'];
+  return gulp.src(paths, {read: false})
+    .pipe(cover({
+      env: { NODE_ENV: 'test' },
+      require: '@babel/register',
+      nyc: {
+        sourceMap: false,
+        instrument: false,
+        tempDir: './coverage/.nyc_output',
+        extension: ['.js', '.es6'],
+        reporter: ['text-summary', 'html'],
+        reportDir: './coverage/report'
+      },
+      timeout: 15000,
+      exit: true
+    }));
 }
 
 exports.default = defaultTask;
@@ -53,3 +73,4 @@ exports.server = serverTask;
 exports.s = serverTask;
 exports.cs = codeStyle;
 exports.unit = unit;
+exports.coverage = coverage;
