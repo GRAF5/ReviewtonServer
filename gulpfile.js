@@ -16,6 +16,7 @@ function defaultTask(cb) {
   console.log('\tserver - s - run dev server');
   console.log('\tcs - check code style');
   console.log('\tunit - start unit tests, --tags filename to start selected tests');
+  console.log('\tcoverage - check code coverage');
   cb();
 }
 function serverTask(cb) {
