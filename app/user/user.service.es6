@@ -144,4 +144,13 @@ export default class UserService {
       next(err);
     }
   }
+
+  /**
+   * Get user by id
+   * @param {String} id user id
+   * @return {User} user
+   */
+  async getById(id) {
+    return this._userModel.find({_id : id}).lean();
+  }
 }

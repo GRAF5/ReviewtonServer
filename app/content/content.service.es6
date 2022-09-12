@@ -1,6 +1,8 @@
 'use strict';
 
 import log4js from 'log4js';
+import { ValidationError } from '../errorHandler/errorHandler.es6';
+import { v4 } from 'uuid';
 
 /**
  * Class for content request
@@ -41,6 +43,107 @@ export default class ContentService {
       return res.status(200).json({articles});
     } catch (err) {
       this._logger.error('Error while getting articles', err);
+      next(err);
+    }
+  }
+
+  /**
+   * Create new article
+   */
+  // eslint-disable-next-line complexity
+  async createArticle(req, res, next) {
+    let newSubject;
+    let newTags = [];
+    let article;
+    try {
+      let errors = [];
+      if (!req.body.user) {
+        errors.push({
+          arg: 'user',
+          message: 'Необхідно вказати автора'
+        });
+      } 
+      let user = await this._userModel.findOne({_id: req.body.user});
+      if (!user) {
+        errors.push({
+          arg: 'user',
+          message: 'Користувача не знайдено'
+        });
+      }
+      if (!req.body.subject) {
+        errors.push({
+          arg: 'subject',
+          message: 'Необхідно вказати тему'
+        });
+      }
+      if (!req.body.rating) {
+        errors.push({
+          arg: 'rating',
+          message: 'Необхідно поставити оцінку'
+        });
+      }
+      req.body.rating = ((+req.body.rating).toFixed());
+      if (req.body.rating > 5 || req.body.rating < 1) {
+        errors.push({
+          arg: 'rating',
+          message: 'Оцінка має бути від 1 до 5'
+        });
+      }
+      if (errors.length) {
+        throw new ValidationError('Create article error', errors);
+      }
+      req.body.subject = req.body.subject.replace(/^\s+|\s+$/g, '');
+      let subject = await this._subjectModel.findOne({name: req.body.subject});
+      if (!subject) {
+        subject = new this._subjectModel({ _id: v4(), name: req.body.subject});
+        await subject.save();
+        newSubject = subject._id;
+      }
+      let tags = [];
+      for (let name of (req.body.tags || [])) {
+        name = name.replace(/^\s+|\s+$/g, '');
+        let tag = await this._tagModel.findOne({name});
+        if (!tag) {
+          tag = await new this._tagModel({ _id: v4(), name}).save();
+          newTags.push(tag._id);
+        }
+        tags.push(tag);
+      }
+      article = await new this._articleModel({
+        _id: v4(),
+        rating: req.body.rating,
+        text: req.body.text,
+        createTime: new Date(),
+        user: req.body.user,
+        subject,
+        tags: tags.map(t => t._id)
+      }).save();
+      subject.rating = ((subject.rating * subject.articles?.length || 0) + article.rating) /
+        (subject.articles?.length + 1);
+      subject.articles.push(article._id);
+      await subject.save();
+      tags.forEach(async (tag) => {
+        tag.articles.push(article._id);
+        await tag.save();
+      });
+      user.articles.push(article._id);
+      await user.save();
+      res.status(200).json({_id: article._id});
+    } catch (err) {
+      this._logger.error('Error while create article', err);
+      try {
+        if (newSubject) {
+          await this._subjectModel.deleteOne({_id: newSubject});
+        }
+        if (newTags.length) {
+          await this._tagModel.deleteMany({_id: {$in: newTags}});
+        }
+        if (article) {
+          await this._articleModel.deleteOne({_id: article._id});
+        }
+      } catch (e) {
+        this._logger.error('Can not clear data while create article error', e);
+      }
       next(err);
     }
   }
