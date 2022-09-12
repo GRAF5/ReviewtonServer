@@ -15,8 +15,8 @@ export default class UserModel {
       email: {type: String, required: true},
       hash: {type: String, required: true},
       salt: {type: String, required: true},
-      articles: [{type: Schema.Types.ObjectId, ref: 'Article'}],
-      comments: [{type: Schema.Types.ObjectId, ref: 'Comment'}]
+      articles: [{type: Schema.Types.String, ref: 'Article', default: []}],
+      comments: [{type: Schema.Types.String, ref: 'Comment', default: []}]
     };
     const schema = new mongoose.Schema(fields);
     schema.set('validateBeforeSave', false);

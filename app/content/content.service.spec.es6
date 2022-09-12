@@ -1,11 +1,12 @@
 'use strict';
 
 import Service from '../server.es6';
-import request from 'supertest-promised';
+import request from 'supertest';
 import sinon from 'sinon';
 import log4js from 'log4js';
 import mongoose from 'mongoose';
 import should from 'should';
+import jwt from 'jsonwebtoken';
 
 /**
  * @test ContentService
@@ -28,6 +29,7 @@ describe('ContentService', () => {
   let app;
   let server;
   let sandbox;
+  let contentService;
 
   before(async () => {
     sandbox = sinon.createSandbox();
@@ -39,6 +41,7 @@ describe('ContentService', () => {
     await app.start(conf);
     server = app._server;
     sandbox.useFakeTimers({toFake: ['Date'], now: Date.parse('2022-09-03T16:38:05.447Z')});
+    contentService = app._container.resolve('contentService');
   });
 
   afterEach(async () => {
@@ -60,8 +63,7 @@ describe('ContentService', () => {
     it('should get empty array if there no articles', async () => {
       let res = await request(server)
         .get('/content/articles')
-        .expect(200)
-        .end();
+        .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: []}));
     });
 
@@ -75,13 +77,12 @@ describe('ContentService', () => {
         {_id: '2', rating: 5, text: 'Test 2', createTime: date, user: user._id, subject: subject._id}).save();
       let res = await request(server)
         .get('/content/articles')
-        .expect(200)
-        .end();
+        .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[], __v: 0},
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[]},
         {_id: '2', rating: 5, text: 'Test 2', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[], __v: 0}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[]}]}));
     });
     
     it('should get articles ordered by create time', async () => {
@@ -98,15 +99,14 @@ describe('ContentService', () => {
         {_id: '3', rating: 5, text: 'Test 3', createTime: date3, user: user._id, subject: subject._id}).save();
       let res = await request(server)
         .get('/content/articles')
-        .expect(200)
-        .end();
+        .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '2', rating: 5, text: 'Test 2', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[], __v: 0},
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[]},
         {_id: '3', rating: 5, text: 'Test 3', 
-          createTime: '2022-09-03T16:38:04.447Z', user: user._id, subject: subject._id, tags:[], __v: 0},
+          createTime: '2022-09-03T16:38:04.447Z', user: user._id, subject: subject._id, tags:[]},
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:03.447Z', user: user._id, subject: subject._id, tags:[], __v: 0}]}));
+          createTime: '2022-09-03T16:38:03.447Z', user: user._id, subject: subject._id, tags:[]}]}));
     });
 
     it('should get articles by subjects name', async () => {
@@ -130,13 +130,12 @@ describe('ContentService', () => {
       let res = await request(server)
         .get('/content/articles')
         .query({name: 'Test'})
-        .expect(200)
-        .end();
+        .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject1._id, tags:[], __v: 0},
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject1._id, tags:[]},
         {_id: '2', rating: 5, text: 'Test 2', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject2._id, tags:[], __v: 0}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject2._id, tags:[]}]}));
     });
 
     it('should get articles by tag name', async () => {
@@ -161,11 +160,10 @@ describe('ContentService', () => {
       let res = await request(server)
         .get('/content/articles')
         .query({name: 'Tag1'})
-        .expect(200)
-        .end();
+        .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject1._id, tags:[tag1._id], __v: 0}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject1._id, tags:[tag1._id]}]}));
     });
 
     it('should get articles by user login', async () => {
@@ -185,20 +183,21 @@ describe('ContentService', () => {
       let res = await request(server)
         .get('/content/articles')
         .query({name: 'login1'})
-        .expect(200)
-        .end();
+        .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user1._id, subject: subject1._id, tags:[], __v: 0}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user1._id, subject: subject1._id, tags:[]}]}));
     });
   });
 
+  /**
+   * @test ContentService#getTags
+   */
   describe('getTags', () =>{
     it('should get empty array if there no tags', async () => {
       let res = await request(server)
         .get('/content/tags')
-        .expect(200)
-        .end();
+        .expect(200);
       res.text.should.be.eql(JSON.stringify({tags: []}));
     });
     
@@ -208,8 +207,7 @@ describe('ContentService', () => {
       let res = await request(server)
         .get('/content/tags')
         .query({name: 'Tag1'})
-        .expect(200)
-        .end();
+        .expect(200);
       res.text.should.be.eql(JSON.stringify({tags: [
         {_id: '1', name: 'Tag1', articles:[]}]}));
     });
@@ -242,8 +240,7 @@ describe('ContentService', () => {
       tag3.save();
       let res = await request(server)
         .get('/content/tags')
-        .expect(200)
-        .end();
+        .expect(200);
       res.text.should.be.eql(JSON.stringify({tags: [
         { _id: '2', name: 'Tag2', articles:[article1._id, article2._id, article3._id]},
         { _id: '3', name: 'Tag3', articles:[article1._id, article2._id]},
@@ -255,11 +252,208 @@ describe('ContentService', () => {
       await new mongoose.models['Tag']({ _id: '2', name: 'Tag2'}).save();
       let res = await request(server)
         .get('/content/tags')
-        .expect(200)
-        .end();
+        .expect(200);
       res.text.should.be.eql(JSON.stringify({tags: [
         {_id: '1', name: 'Tag1', articles:[]},
         {_id: '2', name: 'Tag2', articles:[]}]}));
     });
   });
+
+  describe('createArticle', () => {
+
+    let articleParam;
+    let token;
+    const user = {
+      _id: '1',
+      email: 'test@test.com',
+      login: 'login',
+      salt: 'e2996430759b75a241dcdc846605c227',
+      // eslint-disable-next-line max-len
+      hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
+      //password: 'QwerTY123456'
+    };
+
+    beforeEach(() => {
+      mongoose.models['User'].create(user);
+      articleParam = {
+        user: user._id,
+        subject: 'Subject',
+        rating: 3
+      };
+      token = jwt.sign({sub: user.id}, conf.secret, {expiresIn: '7d'});
+    });
+
+    it('should return user validation error when user is undefined', async () => {
+      delete articleParam.user;
+      await request(server)
+        .post('/content/create/article')
+        .send(articleParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should return user validation error when defined wrong user', async () => {
+      articleParam.user = '2';
+      await request(server)
+        .post('/content/create/article')
+        .send(articleParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should return user validation error when subject is undefined', async () => {
+      delete articleParam.subject;
+      await request(server)
+        .post('/content/create/article')
+        .send(articleParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should return user validation error when rating is undefined', async () => {
+      delete articleParam.rating;
+      await request(server)
+        .post('/content/create/article')
+        .send(articleParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should return user validation error when rating over max', async () => {
+      articleParam.rating = 10;
+      await request(server)
+        .post('/content/create/article')
+        .send(articleParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should return user validation error when rating less then min', async () => {
+      articleParam.rating = 0;
+      await request(server)
+        .post('/content/create/article')
+        .send(articleParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should create article', async () => {
+      let res = await request(server)
+        .post('/content/create/article')
+        .send(articleParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let article = await mongoose.models['Article'].findById(res.body._id).lean();
+      article.should.be.eql({
+        _id: res.body._id,
+        createTime: article.createTime,
+        rating: articleParam.rating,
+        subject: article.subject,
+        tags: [],
+        user: articleParam.user
+      });
+      Date(article.createTime).should.be.eql(Date(Date.now()));
+      let subject = await mongoose.models['Subject'].findById(article.subject).lean();
+      subject.name.should.be.eql(articleParam.subject);
+      subject.articles.should.be.eql([article._id]);
+      subject.rating.should.be.eql(articleParam.rating);
+      let userM = await mongoose.models['Subject'].findById(article.subject).lean();
+      userM.articles.should.be.eql([article._id]);
+    });
+
+    it('should create article with tags', async () => {
+      articleParam.tags = ['Tag1', 'Tag2'];
+      let res = await request(server)
+        .post('/content/create/article')
+        .send(articleParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let article = await mongoose.models['Article'].findById(res.body._id).lean();
+      article.rating.should.be.eql(articleParam.rating);
+      article.user.should.be.eql(articleParam.user);
+      article.tags.length.should.be.eql(2);
+      Date(article.createTime).should.be.eql(Date(Date.now()));
+      let subject = await mongoose.models['Subject'].findById(article.subject).lean();
+      subject.name.should.be.eql(articleParam.subject);
+      subject.articles.should.be.eql([article._id]);
+      subject.rating.should.be.eql(articleParam.rating);
+      let userM = await mongoose.models['Subject'].findById(article.subject).lean();
+      userM.articles.should.be.eql([article._id]);
+      let tags = await mongoose.models['Tag'].find().lean();
+      tags.should.be.eql([
+        {_id: article.tags[0], name: 'Tag1', articles: [article._id]},
+        {_id: article.tags[1], name: 'Tag2', articles: [article._id]}
+      ]);
+    });
+
+    it('should create article and update already created subject and tags', async () => {
+      articleParam.tags = ['   Tag1   '];
+      articleParam.subject = '  Subject  ';
+      let sub = await new mongoose.models['Subject']({ _id: '1', name: 'Subject', rating: 4}).save();
+      let tag = await new mongoose.models['Tag']({ _id: '1', name: 'Tag1'}).save();
+      let art = await new mongoose.models['Article'](
+        {
+          _id: '1', rating: 4, text: 'Test 1', 
+          createTime: Date.now(), user: user._id, subject: sub._id, tags: [tag._id]}).save();
+      sub.articles.push(art._id);
+      tag.articles.push(art._id);
+      await sub.save();
+      await tag.save();
+      let res = await request(server)
+        .post('/content/create/article')
+        .send(articleParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let article = await mongoose.models['Article'].findById(res.body._id).lean();
+      article.rating.should.be.eql(articleParam.rating);
+      article.user.should.be.eql(articleParam.user);
+      article.subject.should.be.eql(sub._id);
+      article.tags.should.be.eql([tag._id]);
+      let tagUp = await mongoose.models['Tag'].findById(tag._id).lean();
+      let subUp = await mongoose.models['Subject'].findById(sub._id).lean();
+      subUp.rating.should.be.eql(3.5);
+      subUp.articles.should.be.eql(['1', article._id]);
+      tagUp.articles.should.be.eql(['1', article._id]);
+    });
+  });
+
+  /**
+   * @test ContentService#_checkPagination
+   */
+  describe('_checkPagination', () => {
+
+    it('should use default values if not defined', () => {
+      const req = {
+        query: {}
+      };
+      const {limit, offset} = contentService._checkPagination(req);
+      limit.should.be.eql(25);
+      offset.should.be.eql(0);
+    });
+
+    it('should not go beyond the minimal limit', () => {
+      const req = {
+        query: {
+          limit: -20,
+          offset: -20
+        }
+      };
+      const {limit, offset} = contentService._checkPagination(req);
+      limit.should.be.eql(1);
+      offset.should.be.eql(0);
+    });
+
+    it('should not go beyond the maximum limit', () => {
+      const req = {
+        query: {
+          limit: 1000,
+          offset: 1000
+        }
+      };
+      const {limit, offset} = contentService._checkPagination(req);
+      limit.should.be.eql(25);
+      offset.should.be.eql(1000);
+    });
+  });
+  
 });

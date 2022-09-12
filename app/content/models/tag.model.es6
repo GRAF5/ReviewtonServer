@@ -11,7 +11,7 @@ export default class TagModel {
     const fields = {
       _id: {type: String, required: true},
       name: {type: String, required: true},
-      articles: [{type: Schema.Types.String, ref: 'Article'}]
+      articles: [{type: Schema.Types.String, ref: 'Article', default: []}]
     };
     const schema = new mongoose.Schema(fields, {versionKey: false});
     schema.statics.getTags = getTags;

@@ -1,7 +1,7 @@
 'use strict';
 
 import Service from '../server.es6';
-import request from 'supertest-promised';
+import request from 'supertest';
 import sinon from 'sinon';
 import log4js from 'log4js';
 import mongoose from 'mongoose';
@@ -64,8 +64,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(400)
-        .end();
+        .expect(400);
     });
 
     it('should return login validation error when user with same login already exist', async () => {
@@ -80,8 +79,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(400)
-        .end();
+        .expect(400);
     });
 
     it('should return login validation error when user with same email already exist', async () => {
@@ -96,8 +94,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(400)
-        .end();
+        .expect(400);
     });
 
     it('should return email validation error when email is undefined', async () => {
@@ -105,8 +102,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(400)
-        .end();
+        .expect(400);
     });
 
     it('should return password validation error when password is undefined', async () => {
@@ -114,8 +110,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(400)
-        .end();
+        .expect(400);
     });
 
     it('should return passwordRepeat validation error when passwordRepeat is undefined', async () => {
@@ -123,8 +118,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(400)
-        .end();
+        .expect(400);
     });
 
     it('should return passwordRepeat validation error when passwordRepeat not equal password', async () => {
@@ -132,8 +126,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(400)
-        .end();
+        .expect(400);
     });
 
     it('should return password validation error when password not contain number', async () => {
@@ -141,8 +134,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(400)
-        .end();
+        .expect(400);
     });
 
     it('should return password validation error when password not contain small latin', async () => {
@@ -150,8 +142,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(400)
-        .end();
+        .expect(400);
     });
 
     it('should return password validation error when password not contain big latin', async () => {
@@ -159,8 +150,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(400)
-        .end();
+        .expect(400);
     });
 
     it('should return password validation error when password smaller then 8 symbols', async () => {
@@ -168,16 +158,14 @@ describe('UserService', () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(400)
-        .end();
+        .expect(400);
     });
 
     it('should successful register new user', async () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(200)
-        .end();
+        .expect(200);
       
     });
   });
@@ -207,8 +195,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(400)
-        .end();
+        .expect(400);
     });
 
     it('should return credentials password error when password is undefined', async () => {
@@ -218,8 +205,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/register')
         .send(userParam)
-        .expect(400)
-        .end();
+        .expect(400);
     });
 
     it('should return error if specify wrong credentials', async () => {
@@ -230,8 +216,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/authenticate')
         .send(userParam)
-        .expect(401)
-        .end();
+        .expect(401);
     });
 
     it('should return error if specify wrong password', async () => {
@@ -242,8 +227,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/authenticate')
         .send(userParam)
-        .expect(401)
-        .end();
+        .expect(401);
     });
 
     it('should authenticate user by login', async () => {
@@ -254,8 +238,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/authenticate')
         .send(userParam)
-        .expect(200)
-        .end();
+        .expect(200);
     });
 
     it('should authenticate user by email', async () => {
@@ -266,8 +249,7 @@ describe('UserService', () => {
       await request(server)
         .post('/user/authenticate')
         .send(userParam)
-        .expect(200)
-        .end();
+        .expect(200);
     });
   });
 });

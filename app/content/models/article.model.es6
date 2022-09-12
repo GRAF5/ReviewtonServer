@@ -11,14 +11,14 @@ export default class ArticleModel {
     const fields = {
       _id: {type: String, required: true},
       rating: {type: Number, required: true},
-      text: {type: String, required: true},
+      text: {type: String},
       createTime: {type: Date, required: true},
       user: {type: Schema.Types.String, ref: 'User', required: true},
       subject: {type: Schema.Types.String, ref: 'Subject', required: true},
-      tags: [{type: Schema.Types.String, ref: 'Tag'}]
+      tags: [{type: Schema.Types.String, ref: 'Tag', default: []}]
 
     };
-    const schema = new mongoose.Schema(fields);
+    const schema = new mongoose.Schema(fields, {versionKey: false});
     schema.statics.getAllOrBySubjectOrUserOrTags = getAllOrBySubjectOrUserOrTags;
     this._model = mongoose.model('Article', schema);
 

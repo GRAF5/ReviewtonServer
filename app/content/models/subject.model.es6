@@ -12,7 +12,7 @@ export default class SubjectModel {
       _id: {type: String, required: true},
       name: {type: String, required: true},
       rating: {type: Number},
-      articles: [{type: Schema.Types.String, ref: 'Article'}]
+      articles: [{type: Schema.Types.String, ref: 'Article', default: []}]
     };
     const schema = new mongoose.Schema(fields);
     schema.statics.getIdsByName = getIdsByName;

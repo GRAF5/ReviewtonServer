@@ -66,6 +66,9 @@ export default class ContentRouter {
     router.route('/content/tags')
       .get(this._contentService.getTags.bind(this._contentService));
 
+    router.route('/content/create/article')
+      .post(this._contentService.createArticle.bind(this._contentService));
+
     return router;
   }
 }
