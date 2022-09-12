@@ -80,9 +80,9 @@ describe('ContentService', () => {
         .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[]},
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[], comments: []},
         {_id: '2', rating: 5, text: 'Test 2', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[]}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[], comments: []}]}));
     });
     
     it('should get articles ordered by create time', async () => {
@@ -102,11 +102,11 @@ describe('ContentService', () => {
         .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '2', rating: 5, text: 'Test 2', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[]},
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[], comments: []},
         {_id: '3', rating: 5, text: 'Test 3', 
-          createTime: '2022-09-03T16:38:04.447Z', user: user._id, subject: subject._id, tags:[]},
+          createTime: '2022-09-03T16:38:04.447Z', user: user._id, subject: subject._id, tags:[], comments: []},
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:03.447Z', user: user._id, subject: subject._id, tags:[]}]}));
+          createTime: '2022-09-03T16:38:03.447Z', user: user._id, subject: subject._id, tags:[], comments: []}]}));
     });
 
     it('should get articles by subjects name', async () => {
@@ -133,9 +133,9 @@ describe('ContentService', () => {
         .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject1._id, tags:[]},
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject1._id, tags:[], comments: []},
         {_id: '2', rating: 5, text: 'Test 2', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject2._id, tags:[]}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject2._id, tags:[], comments: []}]}));
     });
 
     it('should get articles by tag name', async () => {
@@ -163,7 +163,8 @@ describe('ContentService', () => {
         .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject1._id, tags:[tag1._id]}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, 
+          subject: subject1._id, tags:[tag1._id], comments: []}]}));
     });
 
     it('should get articles by user login', async () => {
@@ -186,7 +187,7 @@ describe('ContentService', () => {
         .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user1._id, subject: subject1._id, tags:[]}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user1._id, subject: subject1._id, tags:[], comments: []}]}));
     });
   });
 
@@ -259,6 +260,9 @@ describe('ContentService', () => {
     });
   });
 
+  /**
+   * @test ContentService#createArticle
+   */
   describe('createArticle', () => {
 
     let articleParam;
@@ -273,8 +277,8 @@ describe('ContentService', () => {
       //password: 'QwerTY123456'
     };
 
-    beforeEach(() => {
-      mongoose.models['User'].create(user);
+    beforeEach(async () => {
+      await mongoose.models['User'].create(user);
       articleParam = {
         user: user._id,
         subject: 'Subject',
@@ -350,6 +354,7 @@ describe('ContentService', () => {
         rating: articleParam.rating,
         subject: article.subject,
         tags: [],
+        comments: [],
         user: articleParam.user
       });
       Date(article.createTime).should.be.eql(Date(Date.now()));
@@ -414,6 +419,109 @@ describe('ContentService', () => {
       subUp.rating.should.be.eql(3.5);
       subUp.articles.should.be.eql(['1', article._id]);
       tagUp.articles.should.be.eql(['1', article._id]);
+    });
+  });
+
+  /**
+   * @test ContentService#createComment
+   */
+  describe('createComment', () => {
+
+    const user = {
+      _id: '1',
+      email: 'test@test.com',
+      login: 'login',
+      salt: 'e2996430759b75a241dcdc846605c227',
+      // eslint-disable-next-line max-len
+      hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
+      //password: 'QwerTY123456'
+    };
+    const subject = {
+      _id: '1',
+      name: 'Subject'
+    };  
+    const article = {
+      _id: '1',
+      rating: 5,
+      text: 'Article',
+      user: user._id,
+      subject: subject._id,
+      createTime: Date.now()
+    };
+    let commentParam;
+    let token;
+
+    beforeEach(async () => {
+      await mongoose.models['User'].create(user);
+      await mongoose.models['Subject'].create(subject);
+      await mongoose.models['Article'].create(article);
+      commentParam = {
+        user: user._id,
+        article: article._id,
+        text: 'Comment text'
+      };
+      token = jwt.sign({sub: user.id}, conf.secret, {expiresIn: '7d'});
+    });
+
+    it('should return user validation error when user is undefined', async () => {
+      delete commentParam.user;
+      await request(server)
+        .post('/content/create/comment')
+        .send(commentParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+    
+    it('should return user validation error when defined wrong user', async () => {
+      commentParam.user = '2';
+      await request(server)
+        .post('/content/create/comment')
+        .send(commentParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+    
+    it('should return text validation error when text is undefined', async () => {
+      delete commentParam.text;
+      await request(server)
+        .post('/content/create/comment')
+        .send(commentParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+    
+    it('should return text validation error when text is empty', async () => {
+      commentParam.text = '   \n    ';
+      await request(server)
+        .post('/content/create/comment')
+        .send(commentParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+    
+    it('should return article validation error when article is undefined', async () => {
+      delete commentParam.article;
+      await request(server)
+        .post('/content/create/comment')
+        .send(commentParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+    
+    it('should create comment', async () => {
+      let res = await request(server)
+        .post('/content/create/comment')
+        .send(commentParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let comment = await mongoose.models['Comment'].findById(res.body._id).lean();
+      comment.text.should.be.eql(commentParam.text);
+      comment.user.should.be.eql(commentParam.user);
+      comment.article.should.be.eql(commentParam.article);
+      let art = await mongoose.models['Article'].findById(commentParam.article).lean();
+      art.comments.should.be.eql([res.body._id]);
+      let us = await mongoose.models['User'].findById(commentParam.user).lean();
+      us.comments.should.be.eql([res.body._id]);
     });
   });
 
