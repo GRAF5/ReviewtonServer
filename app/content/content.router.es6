@@ -69,6 +69,9 @@ export default class ContentRouter {
     router.route('/content/create/article')
       .post(this._contentService.createArticle.bind(this._contentService));
 
+    router.route('/content/create/comment')
+      .post(this._contentService.createComment.bind(this._contentService));
+
     return router;
   }
 }

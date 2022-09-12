@@ -15,8 +15,8 @@ export default class ArticleModel {
       createTime: {type: Date, required: true},
       user: {type: Schema.Types.String, ref: 'User', required: true},
       subject: {type: Schema.Types.String, ref: 'Subject', required: true},
-      tags: [{type: Schema.Types.String, ref: 'Tag', default: []}]
-
+      tags: [{type: Schema.Types.String, ref: 'Tag', default: []}],
+      comments: [{type: Schema.Types.String, ref: 'Comment', default: []}]
     };
     const schema = new mongoose.Schema(fields, {versionKey: false});
     schema.statics.getAllOrBySubjectOrUserOrTags = getAllOrBySubjectOrUserOrTags;

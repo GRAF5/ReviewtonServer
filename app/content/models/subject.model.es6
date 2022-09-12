@@ -14,7 +14,7 @@ export default class SubjectModel {
       rating: {type: Number},
       articles: [{type: Schema.Types.String, ref: 'Article', default: []}]
     };
-    const schema = new mongoose.Schema(fields);
+    const schema = new mongoose.Schema(fields, {versionKey: false});
     schema.statics.getIdsByName = getIdsByName;
     this._model = mongoose.model('Subject', schema);
 

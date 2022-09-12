@@ -163,6 +163,68 @@ export default class ContentService {
     }
   }
 
+  /**
+   * Create new comment
+   */
+  // eslint-disable-next-line complexity
+  async createComment(req, res, next) {
+    let comment;
+    try {
+      let errors = [];
+      if (!req.body.user) {
+        errors.push({
+          arg: 'user',
+          message: 'Необхідно вказати автора'
+        });
+      } 
+      let user = await this._userModel.findOne({_id: req.body.user});
+      if (!user) {
+        errors.push({
+          arg: 'user',
+          message: 'Користувача не знайдено'
+        });
+      }
+      if (!req.body.text || /^(\s+|)$/.test(req.body.text)) {
+        errors.push({
+          arg: 'text',
+          message: 'Необхідно додати текст'
+        });
+      }
+      if (!req.body.article) {
+        errors.push({
+          arg: 'article',
+          message: 'Необхідно вказати статтю'
+        });
+      }
+      if (errors.length) {
+        throw new ValidationError('Create comment error', errors);
+      }
+      let article = await this._articleModel.findOne({_id: req.body.article});
+      comment = await new this._commentModel({
+        _id: v4(),
+        text: req.body.text,
+        user: req.body.user,
+        article: req.body.article,
+        createTime: Date.now()
+      }).save();
+      article.comments.push(comment._id);
+      article.save();
+      user.comments.push(comment._id);
+      user.save();
+      res.status(200).json({_id: comment._id});
+    } catch (err) {
+      this._logger.error('Error while create comment', err);
+      try {
+        if (comment) {
+          await this._commentModel.deleteOne({_id: comment._id});
+        }
+      } catch (e) {
+        this._logger.error('Can not clear data while create comment error', e);
+      }
+      next(err);
+    }
+  }
+
   _checkPagination(req) {
     let limit = req.query.limit ? +((+req.query.limit).toFixed()) : 25;
     let offset = req.query.offset ? +((+req.query.offset).toFixed()) : 0;

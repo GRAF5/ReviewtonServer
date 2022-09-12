@@ -185,7 +185,7 @@ describe('UserService', () => {
         hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
         //password: 'QwerTY123456'
       };
-      mongoose.models['User'].create(user);
+      await mongoose.models['User'].create(user);
     });
 
     it('should return credentials validation error when credentials is undefined', async () => {

@@ -18,7 +18,7 @@ export default class UserModel {
       articles: [{type: Schema.Types.String, ref: 'Article', default: []}],
       comments: [{type: Schema.Types.String, ref: 'Comment', default: []}]
     };
-    const schema = new mongoose.Schema(fields);
+    const schema = new mongoose.Schema(fields, {versionKey: false});
     schema.set('validateBeforeSave', false);
     schema.statics.createHash = function(password) {
       return new Promise((res, rej) => {
