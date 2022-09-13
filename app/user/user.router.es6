@@ -14,27 +14,29 @@ export default class UserRouter {
    * /user/register:
    *    post:
    *      description: Regiser new user
-   *      parameters:
-   *        - name: login
-   *          description: Users login
-   *          required: true
-   *          in: body
-   *          type: string
-   *        - name: email
-   *          description: Usersemail
-   *          required: true
-   *          in: body
-   *          type: string
-   *        - name: password
-   *          description: User password
-   *          required: true
-   *          in: body
-   *          type: string
-   *        - name: passwordRepeat
-   *          description: User repeated password
-   *          required: true
-   *          in: body
-   *          type: string
+   *      requestBody: 
+   *        required: true
+   *        content:
+   *          application/json:
+   *            schema:
+   *              type: object
+   *              properties:
+   *                login:
+   *                  description: User login
+   *                  required: true
+   *                  type: string
+   *                email:
+   *                  description: User email
+   *                  required: true
+   *                  type: string
+   *                password:
+   *                  type: string
+   *                  description: User password
+   *                  required: true
+   *                passwordRepeat:
+   *                  type: string
+   *                  description: User repeated password
+   *                  required: true
    *      responses:
    *        200:
    *          description: Successful register user
@@ -44,17 +46,21 @@ export default class UserRouter {
    * /user/authenticate:
    *    post:
    *      description: Authenticate user
-   *      parameters:
-   *        - name: credentials
-   *          description: Users login or emeil
-   *          required: true
-   *          in: body
-   *          type: string
-   *        - name: password
-   *          description: User password
-   *          required: true
-   *          in: body
-   *          type: string
+   *      requestBody: 
+   *        required: true
+   *        content:
+   *          application/json:
+   *            schema:
+   *              type: object
+   *              properties:
+   *                credentials:
+   *                  description: Users login or emeil
+   *                  required: true
+   *                  type: string
+   *                password:
+   *                  type: string
+   *                  description: User password
+   *                  required: true
    *      responses:
    *        200:
    *          description: Successful authenticate user

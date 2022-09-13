@@ -56,6 +56,76 @@ export default class ContentRouter {
    *      responses:
    *        200:
    *          description: Successful get articles
+   * 
+   * /content/create/article:
+   *    post:
+   *      security:              
+   *          - bearerAuth: []
+   *      description: Create new article
+   *      requestBody: 
+   *        required: true
+   *        content:
+   *          application/json:
+   *            schema:
+   *              type: object
+   *              properties:
+   *                user:
+   *                  type: string
+   *                  description: User id
+   *                  required: true
+   *                subject:
+   *                  type: string
+   *                  description: Subject title
+   *                  required: true
+   *                rating:
+   *                  description: Rating from 1 to 5
+   *                  required: true
+   *                  type: integer
+   *                text:
+   *                  description: Article text
+   *                  required: false
+   *                  type: string
+   *                tags:
+   *                  description: Array of tags title
+   *                  required: false
+   *                  type: array
+   *                  items: 
+   *                    type: string
+   *      responses:
+   *        200:
+   *          description: Successful create article
+   *        400:
+   *          description: Validation error
+   * 
+   * /content/comment:
+   *    post:
+   *      security:              
+   *          - bearerAuth: []
+   *      description: Create new comment
+   *      requestBody: 
+   *        required: true
+   *        content:
+   *          application/json:
+   *            schema:
+   *              type: object
+   *              properties:
+   *                user:
+   *                  type: string
+   *                  description: User id
+   *                  required: true
+   *                text:
+   *                  type: string
+   *                  description: Comment text
+   *                  required: true
+   *                article:
+   *                  description: Article id
+   *                  required: true
+   *                  type: string
+   *      responses:
+   *        200:
+   *          description: Successful create comment
+   *        400:
+   *          description: Validation error
    */
   router () {
     const router = express.Router();
@@ -68,6 +138,9 @@ export default class ContentRouter {
 
     router.route('/content/create/article')
       .post(this._contentService.createArticle.bind(this._contentService));
+
+    router.route('/content/comments')
+      .get(this._contentService.getComments.bind(this._contentService));
 
     router.route('/content/create/comment')
       .post(this._contentService.createComment.bind(this._contentService));
