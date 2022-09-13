@@ -196,10 +196,16 @@ export default class ContentService {
           message: 'Необхідно вказати статтю'
         });
       }
+      let article = await this._articleModel.findOne({_id: req.body.article});
+      if (!article) {
+        errors.push({
+          arg: 'article',
+          message: 'Статті не знайдено'
+        });
+      }
       if (errors.length) {
         throw new ValidationError('Create comment error', errors);
       }
-      let article = await this._articleModel.findOne({_id: req.body.article});
       comment = await new this._commentModel({
         _id: v4(),
         text: req.body.text,
@@ -221,6 +227,42 @@ export default class ContentService {
       } catch (e) {
         this._logger.error('Can not clear data while create comment error', e);
       }
+      next(err);
+    }
+  }
+
+  /**
+   * Get comments by article 
+   */
+  async getComments(req, res, next) {
+    try {
+      let errors = [];
+      const {limit, offset} = this._checkPagination(req);
+      if (!req.body.article) {
+        errors.push({
+          arg: 'article',
+          message: 'Необхідно вказати статтю'
+        });
+      }
+      let article = await this._articleModel.findOne({_id: req.body.article});
+      if (!article) {
+        errors.push({
+          arg: 'article',
+          message: 'Статті не знайдено'
+        });
+      }
+      if (errors.length) {
+        throw new ValidationError('Create comment error', errors);
+      }
+      let comments = await this._commentModel.find({article: req.body.article})
+        .sort('-createTime')
+        .skip(offset)
+        .limit(limit)
+        .populate('user', ['login'])
+        .lean();
+      return res.status(200).json({comments});
+    } catch (err) {
+      this._logger.error('Error while getting comment', err);
       next(err);
     }
   }

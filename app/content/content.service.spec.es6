@@ -499,6 +499,15 @@ describe('ContentService', () => {
         .expect(400);
     });
     
+    it('should return article validation error when defined wrong article', async () => {
+      commentParam.article = 'wrongID';
+      await request(server)
+        .post('/content/create/comment')
+        .send(commentParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+    
     it('should return article validation error when article is undefined', async () => {
       delete commentParam.article;
       await request(server)
@@ -525,6 +534,92 @@ describe('ContentService', () => {
     });
   });
 
+  /**
+   * @test ContentService#getComments
+   */
+  describe('getComments', () => {
+
+    const user = {
+      _id: '1',
+      email: 'test@test.com',
+      login: 'login',
+      salt: 'e2996430759b75a241dcdc846605c227',
+      // eslint-disable-next-line max-len
+      hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
+      //password: 'QwerTY123456'
+    };
+    const subject = {
+      _id: '1',
+      name: 'Subject'
+    };  
+    let article = {
+      _id: '1',
+      rating: 5,
+      text: 'Article',
+      user: user._id,
+      subject: subject._id,
+      createTime: Date.now(),
+      comments: []
+    };
+    let params;
+
+    beforeEach(async () => {
+      await mongoose.models['User'].create(user);
+      await mongoose.models['Subject'].create(subject);
+      params = {
+        article: article._id
+      };
+    });
+
+    it('should return article validation error when defined wrong article', async () => {
+      delete params.article;
+      await request(server)
+        .get('/content/comments')
+        .send(params)
+        .expect(400);
+    });
+    
+    it('should return article validation error when article is undefined', async () => {
+      params.article = 'wrongID';
+      await request(server)
+        .get('/content/comments')
+        .send(params)
+        .expect(400);
+    });
+
+    it('should get empty array if no comments', async () => {
+      await mongoose.models['Article'].create(article);
+      let res = await request(server)
+        .get('/content/comments')
+        .send(params)
+        .expect(200);
+      res.body.should.be.eql({comments: []});
+    });
+
+    it('should get article comments', async () => {
+      const comment = {
+        _id: '1',
+        text: 'Comment Text',
+        user: user._id,
+        article: article._id,
+        createTime: Date.now()
+      };
+      await mongoose.models['Article'].create(article);
+      await mongoose.models['Comment'].create(comment);
+      let res = await request(server)
+        .get('/content/comments')
+        .send(params)
+        .expect(200);
+      res.body.should.be.eql({comments: [{
+        ...comment,
+        createTime: res.body.comments[0].createTime,
+        user: {
+          _id: user._id,
+          login: user.login
+        }
+      }]});
+    });
+  });
   /**
    * @test ContentService#_checkPagination
    */

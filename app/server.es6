@@ -125,10 +125,19 @@ export default class Service {
     const swaggerOptions = {     
       failOnErrors: true, // Whether or not to throw when parsing errors. Defaults to false.
       definition: {
-        openapi: '3.0.0',
+        openapi: '3.0.1',
         info: {
           title: 'Reviewton',
           version: '1.0.0'
+        },
+        components: {
+          securitySchemes: {
+            bearerAuth: {
+              type: 'http',
+              scheme: 'bearer',
+              bearerFormat: 'JWT'
+            }
+          }
         }
       },
       apis: ['app/*/*.router.es6']
@@ -185,6 +194,7 @@ export default class Service {
         '/user/authenticate',
         '/content/articles',
         '/content/tags',
+        { url: '/content/comments', method: 'GET'},
         /api-docs.*/
       ]
     });
