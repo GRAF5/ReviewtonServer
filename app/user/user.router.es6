@@ -69,8 +69,10 @@ export default class UserRouter {
    *        401:
    *          description: Unauthorized error
    * 
-   * /user/view/article:
+   * /user/{id}/viewed:
    *    put:
+   *      security:              
+   *          - bearerAuth: []
    *      description: Add viewed article to user
    *      requestBody: 
    *        required: true
@@ -79,19 +81,38 @@ export default class UserRouter {
    *            schema:
    *              type: object
    *              properties:
-   *                user:
-   *                  description: Users id
-   *                  required: true
-   *                  type: string
-   *                articel:
+   *                article:
    *                  type: string
    *                  description: Article id
    *                  required: true
+   *      parameters:
+   *        - in: path
+   *          name: id
+   *          description: User id
+   *          required: true
+   *          type: string
    *      responses:
    *        200:
    *          description: Successful add viewed article
    *        400:
    *          description: Validation error
+   *    get:
+   *      security:              
+   *          - bearerAuth: []
+   *      description: Get user viewed articles
+   *      parameters:
+   *        - in: path
+   *          name: id
+   *          description: User id
+   *          required: true
+   *          type: string
+   *      responses:
+   *        200:
+   *          description: Successful get user viewed articles
+   *        400:
+   *          description: Validation error
+   * 
+   * 
    */
   router() {
     const router = express.Router();
@@ -102,7 +123,8 @@ export default class UserRouter {
     router.route('/user/authenticate')
       .post(this._userService.authenticate.bind(this._userService));
 
-    router.route('/user/view/article')
+    router.route('/user/:id/viewed')
+      .get(this._userService.getViewed.bind(this._userService))
       .put(this._userService.addViewed.bind(this._userService));
 
     return router;
