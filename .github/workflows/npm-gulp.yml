@@ -24,6 +24,6 @@ jobs:
 
     - name: Build
       run: |
-        npm install
+        rm -rf node_modules package-lock.json && npm install
         gulp coverage
         gulp cs
