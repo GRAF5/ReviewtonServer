@@ -16,10 +16,12 @@ export default class UserService {
    * @param param0 
    * @param {Config} param0.config server config
    * @param {UserModel} param0.userModel user model
+   * @param {ArticleModel} param0.articleModel article model
    */
-  constructor({config, userModel}) {
+  constructor({config, userModel, articleModel}) {
     this._config = config;
     this._userModel = userModel.User;
+    this._articleModel = articleModel.Article;
     this._logger = log4js.getLogger('UserService');
   }
 
@@ -141,6 +143,51 @@ export default class UserService {
       }
     } catch (err) {
       this._logger.error('Error while authenticate', err);
+      next(err);
+    }
+  }
+
+  async addViewed(req, res, next) {
+    try {
+      let errors = [];
+      if (!req.body.user) {
+        errors.push({
+          arg: 'user',
+          message: 'Необхідно вказати автора'
+        });
+      } 
+      let user = await this._userModel.findOne({_id: req.body.user});
+      if (!user) {
+        errors.push({
+          arg: 'user',
+          message: 'Користувача не знайдено'
+        });
+      }
+      if (!req.body.article) {
+        errors.push({
+          arg: 'article',
+          message: 'Необхідно вказати статтю'
+        });
+      }
+      let article = await this._articleModel.findOne({_id: req.body.article});
+      if (!article) {
+        errors.push({
+          arg: 'article',
+          message: 'Статті не знайдено'
+        });
+      }
+      if (errors.length) {
+        throw new ValidationError('Add viewed article error', errors);
+      }
+      if (user.viewed.indexOf(article._id) === -1) {
+        article.views++;
+        await article.save();
+        user.viewed.push(article._id);
+        await user.save();
+      }
+      return res.status(200).send();
+    } catch (err) {
+      this._logger.error('Error while add viewed article', err);
       next(err);
     }
   }

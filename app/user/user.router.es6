@@ -68,6 +68,30 @@ export default class UserRouter {
    *          description: Validation error
    *        401:
    *          description: Unauthorized error
+   * 
+   * /user/view/article:
+   *    put:
+   *      description: Add viewed article to user
+   *      requestBody: 
+   *        required: true
+   *        content:
+   *          application/json:
+   *            schema:
+   *              type: object
+   *              properties:
+   *                user:
+   *                  description: Users id
+   *                  required: true
+   *                  type: string
+   *                articel:
+   *                  type: string
+   *                  description: Article id
+   *                  required: true
+   *      responses:
+   *        200:
+   *          description: Successful add viewed article
+   *        400:
+   *          description: Validation error
    */
   router() {
     const router = express.Router();
@@ -77,6 +101,9 @@ export default class UserRouter {
 
     router.route('/user/authenticate')
       .post(this._userService.authenticate.bind(this._userService));
+
+    router.route('/user/view/article')
+      .put(this._userService.addViewed.bind(this._userService));
 
     return router;
   }

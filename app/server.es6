@@ -195,6 +195,7 @@ export default class Service {
         '/content/articles',
         '/content/tags',
         { url: '/content/comments', method: 'GET'},
+        '/user/view/article',
         /api-docs.*/
       ]
     });

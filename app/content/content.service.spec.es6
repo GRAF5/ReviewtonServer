@@ -80,9 +80,11 @@ describe('ContentService', () => {
         .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[], comments: []},
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, 
+          subject: subject._id, tags:[], comments: [], views: 0},
         {_id: '2', rating: 5, text: 'Test 2', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[], comments: []}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, 
+          subject: subject._id, tags:[], comments: [], views: 0}]}));
     });
     
     it('should get articles ordered by create time', async () => {
@@ -102,11 +104,14 @@ describe('ContentService', () => {
         .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '2', rating: 5, text: 'Test 2', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject._id, tags:[], comments: []},
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, 
+          subject: subject._id, tags:[], comments: [], views: 0},
         {_id: '3', rating: 5, text: 'Test 3', 
-          createTime: '2022-09-03T16:38:04.447Z', user: user._id, subject: subject._id, tags:[], comments: []},
+          createTime: '2022-09-03T16:38:04.447Z', user: user._id, 
+          subject: subject._id, tags:[], comments: [], views: 0},
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:03.447Z', user: user._id, subject: subject._id, tags:[], comments: []}]}));
+          createTime: '2022-09-03T16:38:03.447Z', user: user._id, 
+          subject: subject._id, tags:[], comments: [], views: 0}]}));
     });
 
     it('should get articles by subjects name', async () => {
@@ -133,9 +138,11 @@ describe('ContentService', () => {
         .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject1._id, tags:[], comments: []},
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, 
+          subject: subject1._id, tags:[], comments: [], views: 0},
         {_id: '2', rating: 5, text: 'Test 2', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user._id, subject: subject2._id, tags:[], comments: []}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user._id, 
+          subject: subject2._id, tags:[], comments: [], views: 0}]}));
     });
 
     it('should get articles by tag name', async () => {
@@ -164,7 +171,7 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
           createTime: '2022-09-03T16:38:05.447Z', user: user._id, 
-          subject: subject1._id, tags:[tag1._id], comments: []}]}));
+          subject: subject1._id, tags:[tag1._id], comments: [], views: 0}]}));
     });
 
     it('should get articles by user login', async () => {
@@ -187,7 +194,8 @@ describe('ContentService', () => {
         .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
-          createTime: '2022-09-03T16:38:05.447Z', user: user1._id, subject: subject1._id, tags:[], comments: []}]}));
+          createTime: '2022-09-03T16:38:05.447Z', user: user1._id, 
+          subject: subject1._id, tags:[], comments: [], views: 0}]}));
     });
   });
 
@@ -355,6 +363,7 @@ describe('ContentService', () => {
         subject: article.subject,
         tags: [],
         comments: [],
+        views: 0,
         user: articleParam.user
       });
       Date(article.createTime).should.be.eql(Date(Date.now()));
@@ -572,7 +581,8 @@ describe('ContentService', () => {
     });
 
     it('should return article validation error when defined wrong article', async () => {
-      delete params.article;
+      await mongoose.models['Article'].create(article);
+      params.article = 'wrongID';
       await request(server)
         .get('/content/comments')
         .send(params)
@@ -580,7 +590,7 @@ describe('ContentService', () => {
     });
     
     it('should return article validation error when article is undefined', async () => {
-      params.article = 'wrongID';
+      delete params.article;
       await request(server)
         .get('/content/comments')
         .send(params)
