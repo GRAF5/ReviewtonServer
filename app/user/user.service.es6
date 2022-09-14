@@ -150,13 +150,13 @@ export default class UserService {
   async addViewed(req, res, next) {
     try {
       let errors = [];
-      if (!req.body.user) {
+      if (!req.params.id) {
         errors.push({
           arg: 'user',
           message: 'Необхідно вказати автора'
         });
       } 
-      let user = await this._userModel.findOne({_id: req.body.user});
+      let user = await this._userModel.findOne({_id: req.params.id});
       if (!user) {
         errors.push({
           arg: 'user',
@@ -188,6 +188,32 @@ export default class UserService {
       return res.status(200).send();
     } catch (err) {
       this._logger.error('Error while add viewed article', err);
+      next(err);
+    }
+  }
+
+  async getViewed(req, res, next) {
+    try {
+      let errors = [];
+      let user = await this._userModel.findOne({_id: req.params.id});
+      if (!req.params.id) {
+        errors.push({
+          arg: 'user',
+          message: 'Необхідно вказати автора'
+        });
+      } else if (!user) {
+        errors.push({
+          arg: 'user',
+          message: 'Користувача не знайдено'
+        });
+      }
+      if (errors.length) {
+        throw new ValidationError('Add viewed article error', errors);
+      }
+      let articles = await this._articleModel.find({_id: {$in: user.viewed}});
+      return res.status(200).json({articles});
+    } catch (err) {
+      this._logger.error('Error while get viewed article', err);
       next(err);
     }
   }

@@ -5,6 +5,7 @@ import request from 'supertest';
 import sinon from 'sinon';
 import log4js from 'log4js';
 import mongoose from 'mongoose';
+import jwt from 'jsonwebtoken';
 
 /**
  * @test UserService
@@ -254,7 +255,7 @@ describe('UserService', () => {
   });
 
   /**
-   * @test UserService#authenticate
+   * @test UserService#addViewed
    */
   describe('addViewed', () => {
     const user = {
@@ -280,70 +281,148 @@ describe('UserService', () => {
       comments: []
     };
     let params;
+    let token;
     beforeEach(async () => {
       await mongoose.models['User'].create(user);
       await mongoose.models['Subject'].create(subject);
       await mongoose.models['Article'].create(article);
       params = {
-        user: user._id,
         article: article._id
       };
+      token = jwt.sign({sub: user.id}, conf.secret, {expiresIn: '7d'});
     });
 
     it('should return user validation error when user is undefined', async () => {
-      delete params.user;
       await request(server)
-        .put('/user/view/article')
+        .put('/user//viewed')
         .send(params)
-        .expect(400);
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
     });
     
     it('should return user validation error when defined wrong user', async () => {
-      params.user = '2';
       await request(server)
-        .put('/user/view/article')
+        .put('/user/2/viewed')
         .send(params)
+        .set('Authorization', `Bearer ${token}`)
         .expect(400);
     });
 
     it('should return article validation error when article is undefined', async () => {
       delete params.article;
       await request(server)
-        .put('/user/view/article')
+        .put('/user/1/viewed')
         .send(params)
+        .set('Authorization', `Bearer ${token}`)
         .expect(400);
     });
 
     it('should return article validation error when defined wrong article', async () => {
       params.article = '2';
       await request(server)
-        .put('/user/view/article')
+        .put('/user/1/viewed')
         .send(params)
+        .set('Authorization', `Bearer ${token}`)
         .expect(400);
     });
 
     it('should add viewed article', async () => {
       await request(server)
-        .put('/user/view/article')
+        .put('/user/1/viewed')
         .send(params)
+        .set('Authorization', `Bearer ${token}`)
         .expect(200);
-      let us = await mongoose.models['User'].findById(params.user).lean();
+      let us = await mongoose.models['User'].findById(user._id).lean();
       us.viewed.should.be.eql([params.article]);
       let art = await mongoose.models['Article'].findById(params.article).lean();
       art.views.should.be.eql(1);
     });
 
     it('should not add already viewed articles', async () => {
-      await mongoose.models['User'].updateOne({_id: params.user}, {viewed: [article._id]});
+      await mongoose.models['User'].updateOne({_id: user._id}, {viewed: [article._id]});
       await mongoose.models['Article'].updateOne({_id: params.article}, {views: 1});
       await request(server)
-        .put('/user/view/article')
+        .put('/user/1/viewed')
         .send(params)
+        .set('Authorization', `Bearer ${token}`)
         .expect(200);
-      let us = await mongoose.models['User'].findById(params.user).lean();
+      let us = await mongoose.models['User'].findById(user._id).lean();
       us.viewed.should.be.eql([params.article]);
       let art = await mongoose.models['Article'].findById(params.article).lean();
       art.views.should.be.eql(1);
+    });
+  });
+
+  /**
+   * @test UserService#getViewed
+   */
+  describe('getViewed', () => {
+    const user = {
+      _id: '1',
+      email: 'test@test.com',
+      login: 'login',
+      salt: 'e2996430759b75a241dcdc846605c227',
+      // eslint-disable-next-line max-len
+      hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
+      //password: 'QwerTY123456'
+    };
+    const subject = {
+      _id: '1',
+      name: 'Subject'
+    };  
+    let article = {
+      _id: '1',
+      rating: 5,
+      text: 'Article',
+      user: user._id,
+      subject: subject._id,
+      createTime: Date.now(),
+      comments: []
+    };
+    let params;
+    let token;
+
+    beforeEach(async () => {
+      await mongoose.models['User'].create(user);
+      await mongoose.models['Subject'].create(subject);
+      await mongoose.models['Article'].create(article);
+      token = jwt.sign({sub: user.id}, conf.secret, {expiresIn: '7d'});
+    });
+
+    it('should return user validation error when user is undefined', async () => {
+      await request(server)
+        .get('/user//viewed')
+        .send(params)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
+    });
+    
+    it('should return user validation error when defined wrong user', async () => {
+      await request(server)
+        .get('/user/2/viewed')
+        .send(params)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should get empty array if user not have viewed adricles', async () => {
+      let res = await request(server)
+        .get('/user/1/viewed')
+        .send(params)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      res.body.should.be.eql({articles: []});
+    });
+
+    it('should get viewed adricles', async () => {
+      await mongoose.models['User'].updateOne({_id: user._id}, {viewed: [article._id]});
+      let res = await request(server)
+        .get('/user/1/viewed')
+        .send(params)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      res.body.should.be.eql(
+        {articles: [{...article, createTime: res.body.articles[0].createTime, tags: [], views: 0}]});
     });
   });
 });
