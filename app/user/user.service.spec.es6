@@ -193,7 +193,7 @@ describe('UserService', () => {
         password: 'QwerTY123456'
       };
       await request(server)
-        .post('/user/register')
+        .post('/user/authenticate')
         .send(userParam)
         .expect(400);
     });
@@ -203,7 +203,7 @@ describe('UserService', () => {
         credentials: 'login'
       };
       await request(server)
-        .post('/user/register')
+        .post('/user/authenticate')
         .send(userParam)
         .expect(400);
     });
@@ -250,6 +250,100 @@ describe('UserService', () => {
         .post('/user/authenticate')
         .send(userParam)
         .expect(200);
+    });
+  });
+
+  /**
+   * @test UserService#authenticate
+   */
+  describe('addViewed', () => {
+    const user = {
+      _id: '1',
+      email: 'test@test.com',
+      login: 'login',
+      salt: 'e2996430759b75a241dcdc846605c227',
+      // eslint-disable-next-line max-len
+      hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
+      //password: 'QwerTY123456'
+    };
+    const subject = {
+      _id: '1',
+      name: 'Subject'
+    };  
+    let article = {
+      _id: '1',
+      rating: 5,
+      text: 'Article',
+      user: user._id,
+      subject: subject._id,
+      createTime: Date.now(),
+      comments: []
+    };
+    let params;
+    beforeEach(async () => {
+      await mongoose.models['User'].create(user);
+      await mongoose.models['Subject'].create(subject);
+      await mongoose.models['Article'].create(article);
+      params = {
+        user: user._id,
+        article: article._id
+      };
+    });
+
+    it('should return user validation error when user is undefined', async () => {
+      delete params.user;
+      await request(server)
+        .put('/user/view/article')
+        .send(params)
+        .expect(400);
+    });
+    
+    it('should return user validation error when defined wrong user', async () => {
+      params.user = '2';
+      await request(server)
+        .put('/user/view/article')
+        .send(params)
+        .expect(400);
+    });
+
+    it('should return article validation error when article is undefined', async () => {
+      delete params.article;
+      await request(server)
+        .put('/user/view/article')
+        .send(params)
+        .expect(400);
+    });
+
+    it('should return article validation error when defined wrong article', async () => {
+      params.article = '2';
+      await request(server)
+        .put('/user/view/article')
+        .send(params)
+        .expect(400);
+    });
+
+    it('should add viewed article', async () => {
+      await request(server)
+        .put('/user/view/article')
+        .send(params)
+        .expect(200);
+      let us = await mongoose.models['User'].findById(params.user).lean();
+      us.viewed.should.be.eql([params.article]);
+      let art = await mongoose.models['Article'].findById(params.article).lean();
+      art.views.should.be.eql(1);
+    });
+
+    it('should not add already viewed articles', async () => {
+      await mongoose.models['User'].updateOne({_id: params.user}, {viewed: [article._id]});
+      await mongoose.models['Article'].updateOne({_id: params.article}, {views: 1});
+      await request(server)
+        .put('/user/view/article')
+        .send(params)
+        .expect(200);
+      let us = await mongoose.models['User'].findById(params.user).lean();
+      us.viewed.should.be.eql([params.article]);
+      let art = await mongoose.models['Article'].findById(params.article).lean();
+      art.views.should.be.eql(1);
     });
   });
 });
