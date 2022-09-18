@@ -1,5 +1,6 @@
 'use strict';
 
+import { body, param, validationResult } from 'express-validator';
 import log4js from 'log4js';
 import { ValidationError } from '../errorHandler/errorHandler.es6';
 import { v4 } from 'uuid';
@@ -56,43 +57,8 @@ export default class ContentService {
     let newTags = [];
     let article;
     try {
-      let errors = [];
-      if (!req.body.user) {
-        errors.push({
-          arg: 'user',
-          message: 'Необхідно вказати автора'
-        });
-      } 
+      await this._validateCreateArticles(req);
       let user = await this._userModel.findOne({_id: req.body.user});
-      if (!user) {
-        errors.push({
-          arg: 'user',
-          message: 'Користувача не знайдено'
-        });
-      }
-      if (!req.body.subject) {
-        errors.push({
-          arg: 'subject',
-          message: 'Необхідно вказати тему'
-        });
-      }
-      if (!req.body.rating) {
-        errors.push({
-          arg: 'rating',
-          message: 'Необхідно поставити оцінку'
-        });
-      }
-      req.body.rating = ((+req.body.rating).toFixed());
-      if (req.body.rating > 5 || req.body.rating < 1) {
-        errors.push({
-          arg: 'rating',
-          message: 'Оцінка має бути від 1 до 5'
-        });
-      }
-      if (errors.length) {
-        throw new ValidationError('Create article error', errors);
-      }
-      req.body.subject = req.body.subject.replace(/^\s+|\s+$/g, '');
       let subject = await this._subjectModel.findOne({name: req.body.subject});
       if (!subject) {
         subject = new this._subjectModel({ _id: v4(), name: req.body.subject});
@@ -101,7 +67,6 @@ export default class ContentService {
       }
       let tags = [];
       for (let name of (req.body.tags || [])) {
-        name = name.replace(/^\s+|\s+$/g, '');
         let tag = await this._tagModel.findOne({name});
         if (!tag) {
           tag = await new this._tagModel({ _id: v4(), name}).save();
@@ -147,6 +112,85 @@ export default class ContentService {
       next(err);
     }
   }
+  
+  async _validateCreateArticles(req) {
+    try {
+      let validations = [
+        body('user')
+          .notEmpty().withMessage('Необхідно вказати автора')
+          .custom((value) => {
+            let query = this._userModel.findOne({ _id: value});
+            return query.exec().then(user => {
+              if (!user) {
+                return Promise.reject('Користувача не знайдено');
+              }
+            });
+          }),
+        body('subject')
+          .notEmpty().withMessage('Необхідно вказати тему')
+          .customSanitizer(value => {return value.replace(/^\s+|\s+$/g, '');}),
+        body('rating')
+          .notEmpty().withMessage('Необхідно поставити оцінку')
+          .isInt({min: 1, max: 5}).withMessage('Оцінка має бути від 1 до 5'),
+        body('tags')
+          .optional({nullable: true})
+          .customSanitizer(value => {return value.map(el => el.replace(/^\s+|\s+$/g, ''));})
+      ];
+      await this._validate(req, validations);
+    } catch (err) {
+      throw new ValidationError('Create article error', err);
+    }
+  }
+
+  /**
+   * Update article 
+   */
+  async updateArticle(req, res, next) {
+    try {
+      await this._validateUpdateArticle(req);
+      let article = await this._articleModel.findOne({_id: req.params.id});
+      if (req.body.text !== article.text) {
+        article.text = req.body.text;
+      }
+      if (req.body.rating && (req.body.rating !== article.rating)) {
+        let dif = req.body.rating - article.rating;
+        article.rating = req.body.rating;
+        await article.save();
+        let subject = await this._subjectModel.findOne({_id: article.subject});
+        subject.rating = (subject.rating * subject.articles.length + dif) / subject.articles.length;
+        await subject.save();
+      } else {
+        await article.save();
+      }
+      res.status(200).send();
+    } catch (err) {
+      this._logger.error('Error while update article', err);
+      next(err);
+    }
+  }
+
+  async _validateUpdateArticle(req) {
+    try {
+      let validations = [
+        param('id')
+          .notEmpty().withMessage('Необхідно вказати статтю')
+          .custom((value) => {
+            let query = this._articleModel.findOne({ _id: value});
+            return query.exec().then(article => {
+              if (!article) {
+                return Promise.reject('Статті не знайдено');
+              }
+            });
+          }),
+        body('rating')
+          .optional()
+          .isInt({min: 1, max: 5}).withMessage('Оцінка має бути від 1 до 5')
+      ];
+      await this._validate(req, validations);
+    } catch (err) {
+      throw new ValidationError('Update article error', err);
+    }
+  }
 
   /**
    * Gat tags ordered by articles count
@@ -166,46 +210,12 @@ export default class ContentService {
   /**
    * Create new comment
    */
-  // eslint-disable-next-line complexity
   async createComment(req, res, next) {
     let comment;
     try {
-      let errors = [];
-      if (!req.body.user) {
-        errors.push({
-          arg: 'user',
-          message: 'Необхідно вказати автора'
-        });
-      } 
+      await this._validateCreateComment(req);
       let user = await this._userModel.findOne({_id: req.body.user});
-      if (!user) {
-        errors.push({
-          arg: 'user',
-          message: 'Користувача не знайдено'
-        });
-      }
-      if (!req.body.text || /^(\s+|)$/.test(req.body.text)) {
-        errors.push({
-          arg: 'text',
-          message: 'Необхідно додати текст'
-        });
-      }
-      if (!req.body.article) {
-        errors.push({
-          arg: 'article',
-          message: 'Необхідно вказати статтю'
-        });
-      }
       let article = await this._articleModel.findOne({_id: req.body.article});
-      if (!article) {
-        errors.push({
-          arg: 'article',
-          message: 'Статті не знайдено'
-        });
-      }
-      if (errors.length) {
-        throw new ValidationError('Create comment error', errors);
-      }
       comment = await new this._commentModel({
         _id: v4(),
         text: req.body.text,
@@ -231,29 +241,45 @@ export default class ContentService {
     }
   }
 
+  async _validateCreateComment(req) {
+    try {
+      let validations = [
+        body('user')
+          .notEmpty().withMessage('Необхідно вказати автора')
+          .custom((value) => {
+            let query = this._userModel.findOne({ _id: value});
+            return query.exec().then(user => {
+              if (!user) {
+                return Promise.reject('Користувача не знайдено');
+              }
+            });
+          }),
+        body('text')
+          .not().matches(/^(\s+|)$/).withMessage('Необхідно вказати текст'),
+        body('article')
+          .notEmpty().withMessage('Необхідно вказати статтю')
+          .custom((value) => {
+            let query = this._articleModel.findOne({ _id: value});
+            return query.exec().then(article => {
+              if (!article) {
+                return Promise.reject('Статті не знайдено');
+              }
+            });
+          })
+      ];
+      await this._validate(req, validations);
+    } catch (err) {
+      throw new ValidationError('Create comment error', err);
+    }
+  }
+
   /**
    * Get comments by article 
    */
   async getComments(req, res, next) {
     try {
-      let errors = [];
+      await this._validateGetComments(req);
       const {limit, offset} = this._checkPagination(req);
-      if (!req.body.article) {
-        errors.push({
-          arg: 'article',
-          message: 'Необхідно вказати статтю'
-        });
-      }
-      let article = await this._articleModel.findOne({_id: req.body.article});
-      if (!article) {
-        errors.push({
-          arg: 'article',
-          message: 'Статті не знайдено'
-        });
-      }
-      if (errors.length) {
-        throw new ValidationError('Create comment error', errors);
-      }
       let comments = await this._commentModel.find({article: req.body.article})
         .sort('-createTime')
         .skip(offset)
@@ -264,6 +290,27 @@ export default class ContentService {
     } catch (err) {
       this._logger.error('Error while getting comment', err);
       next(err);
+    }
+  }
+
+  
+  async _validateGetComments(req) {
+    try {
+      let validations = [
+        body('article')
+          .notEmpty().withMessage('Необхідно вказати статтю')
+          .custom((value) => {
+            let query = this._articleModel.findOne({ _id: value});
+            return query.exec().then(article => {
+              if (!article) {
+                return Promise.reject('Статті не знайдено');
+              }
+            });
+          })
+      ];
+      await this._validate(req, validations);
+    } catch (err) {
+      throw new ValidationError('Get comment error', err);
     }
   }
 
@@ -280,5 +327,14 @@ export default class ContentService {
       offset = 0;
     }
     return {limit, offset};
+  }
+
+  async _validate(req, validations) {
+    await Promise.all(validations.map(validation => validation.run(req)));
+    const errors = validationResult(req);
+    if (errors.isEmpty()) {
+      return;
+    }
+    throw errors;
   }
 }
