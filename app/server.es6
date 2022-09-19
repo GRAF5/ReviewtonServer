@@ -205,7 +205,7 @@ export default class Service {
    */
   // eslint-disable-next-line complexity
   _configureLogs(conf) {
-    let logPath = path.join('logs', 'application.log');
+    let logPath = path.join(__dirname, 'logs', 'application.log');
     let logDirPath = path.dirname(logPath);
     if (!fs.existsSync(logDirPath)) {
       fs.mkdirSync(logDirPath);

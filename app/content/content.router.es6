@@ -97,6 +97,38 @@ export default class ContentRouter {
    *        400:
    *          description: Validation error
    * 
+   * /content/article/{id}:
+   *    put:
+   *      security:              
+   *          - bearerAuth: []
+   *      description: Update article
+   *      parameters:
+   *        - in: path
+   *          name: id
+   *          description: Article id
+   *          required: true
+   *          type: string
+   *      requestBody: 
+   *        required: true
+   *        content:
+   *          application/json:
+   *            schema:
+   *              type: object
+   *              properties:
+   *                rating:
+   *                  description: Rating from 1 to 5
+   *                  required: false
+   *                  type: integer
+   *                text:
+   *                  description: Article text
+   *                  required: false
+   *                  type: string
+   *      responses:
+   *        200:
+   *          description: Successful update article
+   *        400:
+   *          description: Validation error
+   * 
    * /content/comment:
    *    post:
    *      security:              
@@ -138,6 +170,9 @@ export default class ContentRouter {
 
     router.route('/content/create/article')
       .post(this._contentService.createArticle.bind(this._contentService));
+
+    router.route('/content/article/:id')
+      .put(this._contentService.updateArticle.bind(this._contentService));
 
     router.route('/content/comments')
       .get(this._contentService.getComments.bind(this._contentService));

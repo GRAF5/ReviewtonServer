@@ -26,7 +26,7 @@ describe('ContentService', () => {
     salt: 'salt',
     hash: 'hash'
   };
-  let app;
+  let app = new Service();
   let server;
   let sandbox;
   let contentService;
@@ -37,7 +37,6 @@ describe('ContentService', () => {
       error: () => {},
       info: () => {}
     });
-    app = new Service();
     await app.start(conf);
     server = app._server;
     sandbox.useFakeTimers({toFake: ['Date'], now: Date.parse('2022-09-03T16:38:05.447Z')});
@@ -49,9 +48,9 @@ describe('ContentService', () => {
   });
 
   after(async () => {
-    await app.stop();
     await app._db.clear();
     await app._db.delete();
+    await app.stop();
     sandbox.restore();
   });
 
@@ -428,6 +427,99 @@ describe('ContentService', () => {
       subUp.rating.should.be.eql(3.5);
       subUp.articles.should.be.eql(['1', article._id]);
       tagUp.articles.should.be.eql(['1', article._id]);
+    });
+  });
+
+  /**
+   * @test ContentService#updateArticle
+   */
+  describe('updateArticle', () => {
+    
+    let token;
+    const user = {
+      _id: '1',
+      email: 'test@test.com',
+      login: 'login',
+      salt: 'e2996430759b75a241dcdc846605c227',
+      // eslint-disable-next-line max-len
+      hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
+      //password: 'QwerTY123456'
+    };
+    const subject = {
+      _id: '1',
+      rating: 3.5,
+      name: 'Subject'
+    };
+    const article = {
+      _id: '1',
+      user: user._id,
+      subject: subject._id,
+      rating: 3,
+      text: 'Text',
+      createTime: Date.now()
+    };
+
+    beforeEach(async () => {
+      await mongoose.models['User'].create(user);
+      let sub = await mongoose.models['Subject'].create(subject);
+      await mongoose.models['Article'].create(article);
+      sub.articles = [article.id, '2'];
+      await sub.save();
+      token = jwt.sign({sub: user.id}, conf.secret, {expiresIn: '7d'});
+    });
+
+    it('should return article validation error when defined wrong id', async () => {
+      await request(server)
+        .put('/content/article/2')
+        .send({})
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should return rating validation error when rating over max', async () => {
+      await request(server)
+        .put('/content/article/1')
+        .send({
+          rating: 6
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should return rating validation error when rating less then min', async () => {
+      await request(server)
+        .put('/content/article/1')
+        .send({
+          rating: 0
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should update article rating', async () => {
+      await request(server)
+        .put('/content/article/1')
+        .send({
+          text: 'Another text'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let art = await mongoose.models['Article'].findById(article._id).lean();
+      art.text.should.be.eql('Another text');
+    });
+
+    it('should update article rating', async () => {
+      await request(server)
+        .put('/content/article/1')
+        .send({
+          rating: 5
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let art = await mongoose.models['Article'].findById(article._id).lean();
+      art.rating.should.be.eql(5);
+      let sub = await mongoose.models['Subject'].findById(article.subject).lean();
+      sub.rating.should.be.eql(4.5);
     });
   });
 

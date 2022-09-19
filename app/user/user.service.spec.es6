@@ -18,7 +18,7 @@ describe('UserService', () => {
     },
     secret: 'test'
   };
-  let app;
+  let app = new Service();
   let server;
   let sandbox;
 
@@ -28,7 +28,6 @@ describe('UserService', () => {
       error: () => {},
       info: () => {}
     });
-    app = new Service();
     await app.start(conf);
     server = app._server;
   });
@@ -38,8 +37,9 @@ describe('UserService', () => {
   });
 
   after(async () => {
-    await app.stop();
     await app._db.clear();
+    await app._db.delete();
+    await app.stop();
     sandbox.restore();
   });
 
@@ -83,6 +83,22 @@ describe('UserService', () => {
         .expect(400);
     });
 
+    it('should return login validation error when login over max length', async () => {
+      userParam.login = '123456789012345678901';
+      await request(server)
+        .post('/user/register')
+        .send(userParam)
+        .expect(400);
+    });
+
+    it('should return login validation error when login less then min length', async () => {
+      userParam.login = '123';
+      await request(server)
+        .post('/user/register')
+        .send(userParam)
+        .expect(400);
+    });
+
     it('should return login validation error when user with same email already exist', async () => {
       const user = {
         _id: '1',
@@ -100,6 +116,14 @@ describe('UserService', () => {
 
     it('should return email validation error when email is undefined', async () => {
       delete userParam.email;
+      await request(server)
+        .post('/user/register')
+        .send(userParam)
+        .expect(400);
+    });
+
+    it('should return email validation error when is not valid email', async () => {
+      userParam.email = 'email';
       await request(server)
         .post('/user/register')
         .send(userParam)
