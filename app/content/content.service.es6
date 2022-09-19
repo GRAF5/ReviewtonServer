@@ -83,8 +83,8 @@ export default class ContentService {
         subject,
         tags: tags.map(t => t._id)
       }).save();
-      subject.rating = ((subject.rating * subject.articles?.length || 0) + article.rating) /
-        (subject.articles?.length + 1);
+      subject.rating = ((subject.rating * subject.articles.length || 0) + article.rating) /
+        (subject.articles.length + 1);
       subject.articles.push(article._id);
       await subject.save();
       tags.forEach(async (tag) => {
