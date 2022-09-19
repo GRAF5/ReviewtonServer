@@ -60,8 +60,8 @@ export default class Database {
   async clear() {
     if (mongoose.connection.readyState) {
       await new Promise((resolve, reject) => {
-        mongoose.modelNames().forEach(name => {
-          mongoose.models[name].deleteMany({}, (err) => {
+        mongoose.modelNames().forEach(async (name) => {
+          await mongoose.models[name].deleteMany({}, (err) => {
             if (err) {
               this._logger.error('Error while clear db', err);
               reject(err);

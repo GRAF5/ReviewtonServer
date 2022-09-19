@@ -18,7 +18,7 @@ describe('UserService', () => {
     },
     secret: 'test'
   };
-  let app;
+  let app = new Service();
   let server;
   let sandbox;
 
@@ -28,7 +28,6 @@ describe('UserService', () => {
       error: () => {},
       info: () => {}
     });
-    app = new Service();
     await app.start(conf);
     server = app._server;
   });
@@ -38,8 +37,9 @@ describe('UserService', () => {
   });
 
   after(async () => {
-    await app.stop();
     await app._db.clear();
+    await app._db.delete();
+    await app.stop();
     sandbox.restore();
   });
 

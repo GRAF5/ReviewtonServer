@@ -26,7 +26,7 @@ describe('ContentService', () => {
     salt: 'salt',
     hash: 'hash'
   };
-  let app;
+  let app = new Service();
   let server;
   let sandbox;
   let contentService;
@@ -37,7 +37,6 @@ describe('ContentService', () => {
       error: () => {},
       info: () => {}
     });
-    app = new Service();
     await app.start(conf);
     server = app._server;
     sandbox.useFakeTimers({toFake: ['Date'], now: Date.parse('2022-09-03T16:38:05.447Z')});
@@ -49,9 +48,9 @@ describe('ContentService', () => {
   });
 
   after(async () => {
-    await app.stop();
     await app._db.clear();
     await app._db.delete();
+    await app.stop();
     sandbox.restore();
   });
 
