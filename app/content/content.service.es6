@@ -4,6 +4,7 @@ import { body, param, validationResult } from 'express-validator';
 import log4js from 'log4js';
 import { ValidationError } from '../errorHandler/errorHandler.es6';
 import { v4 } from 'uuid';
+import { UnauthorizedError } from '../errorHandler/errorHandler.es6';
 
 /**
  * Class for content request
@@ -43,7 +44,7 @@ export default class ContentService {
       let articles = await this._articleModel.getAllOrBySubjectOrUserOrTags(subjects, users, tags, limit, offset);
       return res.status(200).json({articles});
     } catch (err) {
-      this._logger.error('Error while getting articles', err);
+      this._logger.error('Error getting articles', err);
       next(err);
     }
   }
@@ -58,7 +59,7 @@ export default class ContentService {
     let article;
     try {
       await this._validateCreateArticles(req);
-      let user = await this._userModel.findOne({_id: req.body.user});
+      let user = await this._userModel.findOne({_id: req.auth.sub});
       let subject = await this._subjectModel.findOne({name: req.body.subject});
       if (!subject) {
         subject = new this._subjectModel({ _id: v4(), name: req.body.subject});
@@ -79,7 +80,7 @@ export default class ContentService {
         rating: req.body.rating,
         text: req.body.text,
         createTime: new Date(),
-        user: req.body.user,
+        user: req.auth.sub,
         subject,
         tags: tags.map(t => t._id)
       }).save();
@@ -95,7 +96,7 @@ export default class ContentService {
       await user.save();
       res.status(200).json({_id: article._id});
     } catch (err) {
-      this._logger.error('Error while create article', err);
+      this._logger.error('Error creating article', err);
       try {
         if (newSubject) {
           await this._subjectModel.deleteOne({_id: newSubject});
@@ -107,7 +108,7 @@ export default class ContentService {
           await this._articleModel.deleteOne({_id: article._id});
         }
       } catch (e) {
-        this._logger.error('Can not clear data while create article error', e);
+        this._logger.error('Can not clear data creating article error', e);
       }
       next(err);
     }
@@ -116,16 +117,6 @@ export default class ContentService {
   async _validateCreateArticles(req) {
     try {
       let validations = [
-        body('user')
-          .notEmpty().withMessage('Необхідно вказати автора')
-          .custom((value) => {
-            let query = this._userModel.findOne({ _id: value});
-            return query.exec().then(user => {
-              if (!user) {
-                return Promise.reject('Користувача не знайдено');
-              }
-            });
-          }),
         body('subject')
           .notEmpty().withMessage('Необхідно вказати тему')
           .customSanitizer(value => {return value.replace(/^\s+|\s+$/g, '');}),
@@ -149,6 +140,9 @@ export default class ContentService {
     try {
       await this._validateUpdateArticle(req);
       let article = await this._articleModel.findOne({_id: req.params.id});
+      if (article.user !== req.auth.sub) {
+        throw new UnauthorizedError('Wrong user defined');
+      }
       if (req.body.text !== article.text) {
         article.text = req.body.text;
       }
@@ -164,7 +158,7 @@ export default class ContentService {
       }
       res.status(200).send();
     } catch (err) {
-      this._logger.error('Error while update article', err);
+      this._logger.error('Error updating article', err);
       next(err);
     }
   }
@@ -202,7 +196,7 @@ export default class ContentService {
       let tags = await this._tagModel.getTags(name, limit, offset);
       return res.status(200).json({tags});
     } catch (err) {
-      this._logger.error('Error while getting tags', err);
+      this._logger.error('Error getting tags', err);
       next(err);
     }
   }
@@ -214,12 +208,12 @@ export default class ContentService {
     let comment;
     try {
       await this._validateCreateComment(req);
-      let user = await this._userModel.findOne({_id: req.body.user});
+      let user = await this._userModel.findOne({_id: req.auth.sub});
       let article = await this._articleModel.findOne({_id: req.body.article});
       comment = await new this._commentModel({
         _id: v4(),
         text: req.body.text,
-        user: req.body.user,
+        user: req.auth.sub,
         article: req.body.article,
         createTime: Date.now()
       }).save();
@@ -229,13 +223,13 @@ export default class ContentService {
       user.save();
       res.status(200).json({_id: comment._id});
     } catch (err) {
-      this._logger.error('Error while create comment', err);
+      this._logger.error('Error creating comment', err);
       try {
         if (comment) {
           await this._commentModel.deleteOne({_id: comment._id});
         }
       } catch (e) {
-        this._logger.error('Can not clear data while create comment error', e);
+        this._logger.error('Can not clear data create comment error', e);
       }
       next(err);
     }
@@ -244,16 +238,6 @@ export default class ContentService {
   async _validateCreateComment(req) {
     try {
       let validations = [
-        body('user')
-          .notEmpty().withMessage('Необхідно вказати автора')
-          .custom((value) => {
-            let query = this._userModel.findOne({ _id: value});
-            return query.exec().then(user => {
-              if (!user) {
-                return Promise.reject('Користувача не знайдено');
-              }
-            });
-          }),
         body('text')
           .not().matches(/^(\s+|)$/).withMessage('Необхідно вказати текст'),
         body('article')
@@ -274,6 +258,47 @@ export default class ContentService {
   }
 
   /**
+   * Update comment 
+   */
+  async updateComment(req, res, next) {
+    try {
+      await this._validateUpdateComment(req);
+      let comment = await this._commentModel.findOne({_id: req.params.id});
+      if (comment.user !== req.auth.sub) {
+        throw new UnauthorizedError('Wrong user defined');
+      }
+      comment.text = req.body.text;
+      await comment.save();
+      res.status(200).send();
+    } catch (err) {
+      this._logger.error('Error updating comment', err);
+      next(err);
+    }
+  }  
+
+  async _validateUpdateComment(req) {
+    try {
+      let validations = [
+        param('id')
+          .notEmpty().withMessage('Необхідно вказати комент')
+          .custom((value) => {
+            let query = this._commentModel.findOne({ _id: value});
+            return query.exec().then(comment => {
+              if (!comment) {
+                return Promise.reject('Коменту не знайдено');
+              }
+            });
+          }),
+        body('text')
+          .not().matches(/^(\s+|)$/).withMessage('Необхідно вказати текст')
+      ];
+      await this._validate(req, validations);
+    } catch (err) {
+      throw new ValidationError('Update comment error', err);
+    }
+  }
+
+  /**
    * Get comments by article 
    */
   async getComments(req, res, next) {
@@ -288,7 +313,7 @@ export default class ContentService {
         .lean();
       return res.status(200).json({comments});
     } catch (err) {
-      this._logger.error('Error while getting comment', err);
+      this._logger.error('Error getting comment', err);
       next(err);
     }
   }

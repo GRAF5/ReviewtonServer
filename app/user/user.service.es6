@@ -1,6 +1,6 @@
 'use strict';
 
-import { body, param, validationResult } from 'express-validator';
+import { body, check, param, validationResult } from 'express-validator';
 import jwt from 'jsonwebtoken';
 import log4js from 'log4js';
 import { v4 } from 'uuid';
@@ -124,7 +124,7 @@ export default class UserService {
   async addViewed(req, res, next) {
     try {
       await this._validateAddViewed(req);
-      let user = await this._userModel.findOne({_id: req.params.id});
+      let user = await this._userModel.findOne({_id: req.auth.sub});
       let article = await this._articleModel.findOne({_id: req.body.article});
       if (user.viewed.indexOf(article._id) === -1) {
         article.views++;
@@ -142,16 +142,6 @@ export default class UserService {
   async _validateAddViewed(req) {
     try {
       let validations = [
-        param('id')
-          .notEmpty().withMessage('Необхідно вказати автора')
-          .custom((value) => {
-            let query = this._userModel.findOne({ _id: value});
-            return query.exec().then(user => {
-              if (!user) {
-                return Promise.reject('Користувача не знайдено');
-              }
-            });
-          }),
         body('article')
           .notEmpty().withMessage('Необхідно вказати статтю')
           .custom((value) => {
@@ -175,7 +165,7 @@ export default class UserService {
   async getViewed(req, res, next) {
     try {
       await this._validateGetViewed(req);
-      let user = await this._userModel.findOne({_id: req.params.id});
+      let user = await this._userModel.findOne({_id: req.auth.sub});
       let articles = await this._articleModel.find({_id: {$in: user.viewed}});
       return res.status(200).json({articles});
     } catch (err) {
@@ -210,7 +200,7 @@ export default class UserService {
    * @return {User} user
    */
   async getById(id) {
-    return this._userModel.find({_id : id}).lean();
+    return this._userModel.findOne({_id : id}).lean();
   }
 
   async _validate(req, validations) {

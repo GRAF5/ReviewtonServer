@@ -17,7 +17,7 @@ export default class TagModel {
     schema.statics.getTags = getTags;
     this._model = mongoose.model('Tag', schema);
 
-    async function getTags(name = '', limit = 25, offset = 0) {
+    async function getTags(name, limit, offset) {
       return await this.find({ name: {$regex: name}})
         .sort('-articles')
         .skip(offset)
