@@ -177,15 +177,17 @@ export default class Service {
    */
   _jwt(conf) {
     const secret = conf.secret;
-    let isRevoked = async (req, token) => {
-      const user = this._container.resolve('userService').getById(token.payload.sub);
+    const isRevoked = async (req, token) => {
+      if (!token.payload.sub) {
+        console.log('f1');
+        return true;
+      }
+      const user = await this._container.resolve('userService').getById(token.payload.sub);
       if (!user) {
-        return false;
+        console.log('f2');
+        return true;
       }
-      if (token.payload.exp < Date.now()) {
-        return false;
-      }
-      return true;
+      return false;
     };
     return expressjwt({secret, algorithms: ['HS256'], isRevoked}).unless({
       // public routes that don't require authentication

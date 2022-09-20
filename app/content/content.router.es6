@@ -158,6 +158,38 @@ export default class ContentRouter {
    *          description: Successful create comment
    *        400:
    *          description: Validation error
+   *        401:
+   *          description: Unauthorized error
+   * 
+   * /content/comment/{id}:
+   *    put:
+   *      security:              
+   *          - bearerAuth: []
+   *      description: Update comment
+   *      parameters:
+   *        - in: path
+   *          name: id
+   *          description: Comment id
+   *          required: true
+   *          type: string
+   *      requestBody: 
+   *        required: true
+   *        content:
+   *          application/json:
+   *            schema:
+   *              type: object
+   *              properties:
+   *                text:
+   *                  description: Article text
+   *                  required: true
+   *                  type: string
+   *      responses:
+   *        200:
+   *          description: Successful update article
+   *        400:
+   *          description: Validation error
+   *        401:
+   *          description: Unauthorized error
    */
   router () {
     const router = express.Router();
@@ -176,6 +208,9 @@ export default class ContentRouter {
 
     router.route('/content/comments')
       .get(this._contentService.getComments.bind(this._contentService));
+      
+    router.route('/content/comment/:id')
+      .put(this._contentService.updateComment.bind(this._contentService));
 
     router.route('/content/create/comment')
       .post(this._contentService.createComment.bind(this._contentService));

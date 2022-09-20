@@ -313,23 +313,7 @@ describe('UserService', () => {
       params = {
         article: article._id
       };
-      token = jwt.sign({sub: user.id}, conf.secret, {expiresIn: '7d'});
-    });
-
-    it('should return user validation error when user is undefined', async () => {
-      await request(server)
-        .put('/user//viewed')
-        .send(params)
-        .set('Authorization', `Bearer ${token}`)
-        .expect(404);
-    });
-    
-    it('should return user validation error when defined wrong user', async () => {
-      await request(server)
-        .put('/user/2/viewed')
-        .send(params)
-        .set('Authorization', `Bearer ${token}`)
-        .expect(400);
+      token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
     });
 
     it('should return article validation error when article is undefined', async () => {
@@ -403,36 +387,18 @@ describe('UserService', () => {
       createTime: Date.now(),
       comments: []
     };
-    let params;
     let token;
 
     beforeEach(async () => {
       await mongoose.models['User'].create(user);
       await mongoose.models['Subject'].create(subject);
       await mongoose.models['Article'].create(article);
-      token = jwt.sign({sub: user.id}, conf.secret, {expiresIn: '7d'});
-    });
-
-    it('should return user validation error when user is undefined', async () => {
-      await request(server)
-        .get('/user//viewed')
-        .send(params)
-        .set('Authorization', `Bearer ${token}`)
-        .expect(404);
-    });
-    
-    it('should return user validation error when defined wrong user', async () => {
-      await request(server)
-        .get('/user/2/viewed')
-        .send(params)
-        .set('Authorization', `Bearer ${token}`)
-        .expect(400);
+      token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
     });
 
     it('should get empty array if user not have viewed adricles', async () => {
       let res = await request(server)
         .get('/user/1/viewed')
-        .send(params)
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
       res.body.should.be.eql({articles: []});
@@ -442,7 +408,6 @@ describe('UserService', () => {
       await mongoose.models['User'].updateOne({_id: user._id}, {viewed: [article._id]});
       let res = await request(server)
         .get('/user/1/viewed')
-        .send(params)
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
       res.body.should.be.eql(

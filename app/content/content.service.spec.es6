@@ -287,29 +287,10 @@ describe('ContentService', () => {
     beforeEach(async () => {
       await mongoose.models['User'].create(user);
       articleParam = {
-        user: user._id,
         subject: 'Subject',
         rating: 3
       };
-      token = jwt.sign({sub: user.id}, conf.secret, {expiresIn: '7d'});
-    });
-
-    it('should return user validation error when user is undefined', async () => {
-      delete articleParam.user;
-      await request(server)
-        .post('/content/create/article')
-        .send(articleParam)
-        .set('Authorization', `Bearer ${token}`)
-        .expect(400);
-    });
-
-    it('should return user validation error when defined wrong user', async () => {
-      articleParam.user = '2';
-      await request(server)
-        .post('/content/create/article')
-        .send(articleParam)
-        .set('Authorization', `Bearer ${token}`)
-        .expect(400);
+      token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
     });
 
     it('should return user validation error when subject is undefined', async () => {
@@ -363,7 +344,7 @@ describe('ContentService', () => {
         tags: [],
         comments: [],
         views: 0,
-        user: articleParam.user
+        user: user._id
       });
       Date(article.createTime).should.be.eql(Date(Date.now()));
       let subject = await mongoose.models['Subject'].findById(article.subject).lean();
@@ -383,7 +364,7 @@ describe('ContentService', () => {
         .expect(200);
       let article = await mongoose.models['Article'].findById(res.body._id).lean();
       article.rating.should.be.eql(articleParam.rating);
-      article.user.should.be.eql(articleParam.user);
+      article.user.should.be.eql(user._id);
       article.tags.length.should.be.eql(2);
       Date(article.createTime).should.be.eql(Date(Date.now()));
       let subject = await mongoose.models['Subject'].findById(article.subject).lean();
@@ -419,7 +400,7 @@ describe('ContentService', () => {
         .expect(200);
       let article = await mongoose.models['Article'].findById(res.body._id).lean();
       article.rating.should.be.eql(articleParam.rating);
-      article.user.should.be.eql(articleParam.user);
+      article.user.should.be.eql(user._id);
       article.subject.should.be.eql(sub._id);
       article.tags.should.be.eql([tag._id]);
       let tagUp = await mongoose.models['Tag'].findById(tag._id).lean();
@@ -465,7 +446,18 @@ describe('ContentService', () => {
       await mongoose.models['Article'].create(article);
       sub.articles = [article.id, '2'];
       await sub.save();
-      token = jwt.sign({sub: user.id}, conf.secret, {expiresIn: '7d'});
+      token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
+    });
+
+    it('should return UnauthorizedError if auth wrong user', async () => {
+      let wrongToken = jwt.sign({sub: '2'}, conf.secret, {expiresIn: '7d'});
+      await request(server)
+        .put('/content/article/1')
+        .send({
+          rating: 3
+        })
+        .set('Authorization', `Bearer ${wrongToken}`)
+        .expect(401);
     });
 
     it('should return article validation error when defined wrong id', async () => {
@@ -496,7 +488,7 @@ describe('ContentService', () => {
         .expect(400);
     });
 
-    it('should update article rating', async () => {
+    it('should update article text', async () => {
       await request(server)
         .put('/content/article/1')
         .send({
@@ -557,29 +549,10 @@ describe('ContentService', () => {
       await mongoose.models['Subject'].create(subject);
       await mongoose.models['Article'].create(article);
       commentParam = {
-        user: user._id,
         article: article._id,
         text: 'Comment text'
       };
-      token = jwt.sign({sub: user.id}, conf.secret, {expiresIn: '7d'});
-    });
-
-    it('should return user validation error when user is undefined', async () => {
-      delete commentParam.user;
-      await request(server)
-        .post('/content/create/comment')
-        .send(commentParam)
-        .set('Authorization', `Bearer ${token}`)
-        .expect(400);
-    });
-    
-    it('should return user validation error when defined wrong user', async () => {
-      commentParam.user = '2';
-      await request(server)
-        .post('/content/create/comment')
-        .send(commentParam)
-        .set('Authorization', `Bearer ${token}`)
-        .expect(400);
+      token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
     });
     
     it('should return text validation error when text is undefined', async () => {
@@ -626,12 +599,110 @@ describe('ContentService', () => {
         .expect(200);
       let comment = await mongoose.models['Comment'].findById(res.body._id).lean();
       comment.text.should.be.eql(commentParam.text);
-      comment.user.should.be.eql(commentParam.user);
+      comment.user.should.be.eql(user._id);
       comment.article.should.be.eql(commentParam.article);
       let art = await mongoose.models['Article'].findById(commentParam.article).lean();
       art.comments.should.be.eql([res.body._id]);
-      let us = await mongoose.models['User'].findById(commentParam.user).lean();
+      let us = await mongoose.models['User'].findById(user._id).lean();
       us.comments.should.be.eql([res.body._id]);
+    });
+  });
+
+  /**
+   * @test ContentService#updateComment
+   */
+  describe('updateComment', () => {
+    
+    let token;
+    const user = {
+      _id: '1',
+      email: 'test@test.com',
+      login: 'login',
+      salt: 'e2996430759b75a241dcdc846605c227',
+      // eslint-disable-next-line max-len
+      hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
+      //password: 'QwerTY123456'
+    };
+    const subject = {
+      _id: '1',
+      rating: 3.5,
+      name: 'Subject'
+    };
+    const article = {
+      _id: '1',
+      user: user._id,
+      subject: subject._id,
+      rating: 3,
+      text: 'Text',
+      createTime: Date.now()
+    };
+    const comment = {
+      _id: '1',
+      user: user._id,
+      text: 'Text',
+      article: article._id,
+      createTime: Date.now()
+    };
+
+    beforeEach(async () => {
+      await mongoose.models['User'].create(user);
+      let sub = await mongoose.models['Subject'].create(subject);
+      await mongoose.models['Article'].create(article);
+      sub.articles = [article.id, '2'];
+      await sub.save();
+      await mongoose.models['Comment'].create(comment);
+      token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
+    });
+
+    it('should return UnauthorizedError if auth wrong user', async () => {
+      let wrongToken = jwt.sign({sub: '2'}, conf.secret, {expiresIn: '7d'});
+      await request(server)
+        .put('/content/comment/1')
+        .send({
+          text: 'Text'
+        })
+        .set('Authorization', `Bearer ${wrongToken}`)
+        .expect(401);
+    });
+
+    it('should return comment validation error when defined wrong id', async () => {
+      await request(server)
+        .put('/content/comment/2')
+        .send({
+          text: 'Text'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should return text validation error when text not defined', async () => {
+      await request(server)
+        .put('/content/comment/1')
+        .send({})
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should return text validation error when text is empty', async () => {
+      await request(server)
+        .put('/content/comment/1')
+        .send({
+          text: '   '
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should update comment', async () => {
+      await request(server)
+        .put('/content/comment/1')
+        .send({
+          text: 'Another text'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let com = await mongoose.models['Comment'].findById(comment._id).lean();
+      com.text.should.be.eql('Another text');
     });
   });
 
@@ -722,6 +793,7 @@ describe('ContentService', () => {
       }]});
     });
   });
+  
   /**
    * @test ContentService#_checkPagination
    */

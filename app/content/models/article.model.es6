@@ -32,7 +32,7 @@ export default class ArticleModel {
      * @param {Number} offset pagination offset
      * @returns 
      */
-    async function getAllOrBySubjectOrUserOrTags(subjects = [], users = [], tags = [], limit = 25, offset = 0) {
+    async function getAllOrBySubjectOrUserOrTags(subjects, users, tags, limit, offset) {
       let rules = [];
       if (subjects.length) {
         rules.push({subject: {$in: subjects}});
