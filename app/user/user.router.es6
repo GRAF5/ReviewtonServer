@@ -4,8 +4,15 @@ import express from 'express';
 
 export default class UserRouter {
 
-  constructor({userService}) {
+  /**
+   * Constructs user router
+   * @param {Object} param0 
+   * @param {UserService} userService user service
+   * @param {AuthorizationService} authorizationService authorization service
+   */
+  constructor({userService, authorizationService}) {
     this._userService = userService;
+    this._authorization = authorizationService;
   }
 
   /**
@@ -124,8 +131,10 @@ export default class UserRouter {
       .post(this._userService.authenticate.bind(this._userService));
 
     router.route('/user/:id/viewed')
-      .get(this._userService.getViewed.bind(this._userService))
-      .put(this._userService.addViewed.bind(this._userService));
+      .get(this._authorization.authorize(),
+        this._userService.getViewed.bind(this._userService))
+      .put(this._authorization.authorize(),
+        this._userService.addViewed.bind(this._userService));
 
     return router;
   }

@@ -20,6 +20,8 @@ import TagModel from './content/models/tag.model.es6';
 import SubjectModel from './content/models/subject.model.es6';
 import ContentRouter from './content/content.router.es6';
 import ContentService from './content/content.service.es6';
+import AuthorizationRouter from './authorization/authorization.router.es6';
+import AuthorizationService from './authorization/authorization.service.es6';
 
 const config = require('./config.js');
 
@@ -65,6 +67,28 @@ export default class Service {
       await this._db.disconnect();
     }
     await this._container.dispose();
+    let resolve, reject;
+    let promise = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    promise.resolve = (result) => {
+      promise.reject = () => {};
+      promise.resolved = true;
+      resolve(result);
+    };
+    promise.reject = (err) => {
+      promise.resolve = () => {};
+      promise.rejected = true;
+      reject(err);
+    };
+    log4js.shutdown((err) => {
+      if (err) {
+        promise.reject(err);
+      }
+      promise.resolve();
+    });
+    await promise;
   }
 
   /**
@@ -80,8 +104,10 @@ export default class Service {
       commentModel: asClass(CommentModel).singleton(),
       tagModel: asClass(TagModel).singleton(),
       subjectModel: asClass(SubjectModel).singleton(),
-      сontentRouter: asClass(ContentRouter).singleton(),
-      contentService: asClass(ContentService).singleton()
+      contentRouter: asClass(ContentRouter).singleton(),
+      contentService: asClass(ContentService).singleton(),
+      authorizationRouter: asClass(AuthorizationRouter).singleton(),
+      authorizationService: asClass(AuthorizationService).singleton()
     });
   }
 
@@ -90,7 +116,8 @@ export default class Service {
    */
   registerRouters() {
     this._addRouter('/', container => container.resolve('userRouter').router());
-    this._addRouter('/', container => container.resolve('сontentRouter').router());
+    this._addRouter('/', container => container.resolve('contentRouter').router());
+    this._addRouter('/', container => container.resolve('authorizationRouter').router());
   }
 
   /**
@@ -113,7 +140,7 @@ export default class Service {
     this._server = express();
     this.registerServices(conf);
     this.registerRouters();
-    this._server.use(this._jwt(conf));
+    //this._server.use(this._jwt(conf));
     this._server.use(express.urlencoded({extended: false, limit: '50mb'}));
     this._server.use(express.json({limit: '50mb'}));
     this._server.use(express.text({limit: '50mb'}));
@@ -169,37 +196,6 @@ export default class Service {
       
     process.on('SIGTERM', shutdown);
     process.on('SIGINT', shutdown);
-  }
-
-  /**
-   * JWT middleware
-   * @returns {Promise} jwt middleware
-   */
-  _jwt(conf) {
-    const secret = conf.secret;
-    const isRevoked = async (req, token) => {
-      if (!token.payload.sub) {
-        console.log('f1');
-        return true;
-      }
-      const user = await this._container.resolve('userService').getById(token.payload.sub);
-      if (!user) {
-        console.log('f2');
-        return true;
-      }
-      return false;
-    };
-    return expressjwt({secret, algorithms: ['HS256'], isRevoked}).unless({
-      // public routes that don't require authentication
-      path: [
-        '/user/register',
-        '/user/authenticate',
-        '/content/articles',
-        '/content/tags',
-        { url: '/content/comments', method: 'GET'},
-        /api-docs.*/
-      ]
-    });
   }
 
   /**

@@ -24,7 +24,13 @@ describe('ContentService', () => {
     email: 'another@mail.com',
     login: 'login',
     salt: 'salt',
-    hash: 'hash'
+    hash: 'hash',
+    permissions: [
+      'create-article',
+      'update-article',
+      'create-comment',
+      'update-comment'
+    ]
   };
   let app = new Service();
   let server;
@@ -80,10 +86,10 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
           createTime: '2022-09-03T16:38:05.447Z', user: user._id, 
-          subject: subject._id, tags:[], comments: [], views: 0},
+          subject: subject._id, tags:[], views: 0},
         {_id: '2', rating: 5, text: 'Test 2', 
           createTime: '2022-09-03T16:38:05.447Z', user: user._id, 
-          subject: subject._id, tags:[], comments: [], views: 0}]}));
+          subject: subject._id, tags:[], views: 0}]}));
     });
     
     it('should get articles ordered by create time', async () => {
@@ -104,13 +110,13 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '2', rating: 5, text: 'Test 2', 
           createTime: '2022-09-03T16:38:05.447Z', user: user._id, 
-          subject: subject._id, tags:[], comments: [], views: 0},
+          subject: subject._id, tags:[], views: 0},
         {_id: '3', rating: 5, text: 'Test 3', 
           createTime: '2022-09-03T16:38:04.447Z', user: user._id, 
-          subject: subject._id, tags:[], comments: [], views: 0},
+          subject: subject._id, tags:[], views: 0},
         {_id: '1', rating: 5, text: 'Test 1', 
           createTime: '2022-09-03T16:38:03.447Z', user: user._id, 
-          subject: subject._id, tags:[], comments: [], views: 0}]}));
+          subject: subject._id, tags:[], views: 0}]}));
     });
 
     it('should get articles by subjects name', async () => {
@@ -119,18 +125,12 @@ describe('ContentService', () => {
       let subject2 = await new mongoose.models['Subject']({ _id: '2', name: 'Test subject 2'}).save();
       let subject3 = await new mongoose.models['Subject']({ _id: '3', name: 'Subject 3'}).save();
       let date = Date.now();
-      let article1 = await new mongoose.models['Article'](
+      await new mongoose.models['Article'](
         {_id: '1', rating: 5, text: 'Test 1', createTime: date, user: user._id, subject: subject1._id}).save();
-      subject1.articles.push(article1._id);
-      subject1 = await subject1.save();
-      let article2 = await new mongoose.models['Article'](
+      await new mongoose.models['Article'](
         {_id: '2', rating: 5, text: 'Test 2', createTime: date, user: user._id, subject: subject2._id}).save();
-      subject2.articles.push(article2._id);
-      subject2 = await subject2.save();
-      let article3 = await new mongoose.models['Article'](
+      await new mongoose.models['Article'](
         {_id: '3', rating: 5, text: 'Test 3', createTime: date, user: user._id, subject: subject3._id}).save();
-      subject3.articles.push(article3._id);
-      subject3 = await subject3.save();
       let res = await request(server)
         .get('/content/articles')
         .query({name: 'Test'})
@@ -138,10 +138,10 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
           createTime: '2022-09-03T16:38:05.447Z', user: user._id, 
-          subject: subject1._id, tags:[], comments: [], views: 0},
+          subject: subject1._id, tags:[], views: 0},
         {_id: '2', rating: 5, text: 'Test 2', 
           createTime: '2022-09-03T16:38:05.447Z', user: user._id, 
-          subject: subject2._id, tags:[], comments: [], views: 0}]}));
+          subject: subject2._id, tags:[], views: 0}]}));
     });
 
     it('should get articles by tag name', async () => {
@@ -151,18 +151,14 @@ describe('ContentService', () => {
       let subject1 = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject 1'}).save();
       let subject2 = await new mongoose.models['Subject']({ _id: '2', name: 'Test subject 2'}).save();
       let date = Date.now();
-      let article1 = await new mongoose.models['Article'](
+      await new mongoose.models['Article'](
         {
           _id: '1', rating: 5, text: 'Test 1', 
           createTime: date, user: user._id, subject: subject1._id, tags: [tag1._id]}).save();
-      subject1.articles.push(article1._id);
-      subject1 = await subject1.save();
-      let article2 = await new mongoose.models['Article'](
+      await new mongoose.models['Article'](
         {
           _id: '2', rating: 5, text: 'Test 2', 
           createTime: date, user: user._id, subject: subject2._id, tags: [tag2._id]}).save();
-      subject2.articles.push(article2._id);
-      subject2 = await subject2.save();
       let res = await request(server)
         .get('/content/articles')
         .query({name: 'Tag1'})
@@ -170,7 +166,7 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
           createTime: '2022-09-03T16:38:05.447Z', user: user._id, 
-          subject: subject1._id, tags:[tag1._id], comments: [], views: 0}]}));
+          subject: subject1._id, tags:[tag1._id], views: 0}]}));
     });
 
     it('should get articles by user login', async () => {
@@ -179,14 +175,10 @@ describe('ContentService', () => {
       let subject1 = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject 1'}).save();
       let subject2 = await new mongoose.models['Subject']({ _id: '2', name: 'Test subject 2'}).save();
       let date = Date.now();
-      let article1 = await new mongoose.models['Article'](
+      await new mongoose.models['Article'](
         {_id: '1', rating: 5, text: 'Test 1', createTime: date, user: user1._id, subject: subject1._id}).save();
-      subject1.articles.push(article1._id);
-      subject1 = await subject1.save();
-      let article2 = await new mongoose.models['Article'](
+      await new mongoose.models['Article'](
         {_id: '2', rating: 5, text: 'Test 2', createTime: date, user: user2._id, subject: subject2._id}).save();
-      subject2.articles.push(article2._id);
-      subject2 = await subject2.save();
       let res = await request(server)
         .get('/content/articles')
         .query({name: 'login1'})
@@ -194,7 +186,7 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
           createTime: '2022-09-03T16:38:05.447Z', user: user1._id, 
-          subject: subject1._id, tags:[], comments: [], views: 0}]}));
+          subject: subject1._id, tags:[], views: 0}]}));
     });
   });
 
@@ -210,14 +202,26 @@ describe('ContentService', () => {
     });
     
     it('should get all tags if name not defined', async () => {
-      await new mongoose.models['Tag']({ _id: '1', name: 'Tag1'}).save();
-      await new mongoose.models['Tag']({ _id: '2', name: 'Tag2'}).save();
+      let tag1 = await new mongoose.models['Tag']({ _id: '1', name: 'Tag1'}).save();
+      let tag2 = await new mongoose.models['Tag']({ _id: '2', name: 'Tag2'}).save();
+      let date = Date.now() - 2000;
+      let user = await new mongoose.models['User'](userParams).save();
+      let subject = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject'}).save();
+      let article1 = await new mongoose.models['Article'](
+        {
+          _id: '1', rating: 5, text: 'Test 1', 
+          createTime: date, user: user._id, subject: subject._id, tags:[tag1._id, tag2._id]}).save();
+      let article2 = await new mongoose.models['Article'](
+        {
+          _id: '2', rating: 5, text: 'Test 2', 
+          createTime: date, user: user._id, subject: subject._id, tags:[tag2._id]}).save();
       let res = await request(server)
         .get('/content/tags')
-        .query({name: 'Tag1'})
         .expect(200);
       res.text.should.be.eql(JSON.stringify({tags: [
-        {_id: '1', name: 'Tag1', articles:[]}]}));
+        {_id: '2', name: 'Tag2', articleCount: 2},
+        {_id: '1', name: 'Tag1', articleCount: 1}
+      ]}));
     });
 
     
@@ -240,30 +244,36 @@ describe('ContentService', () => {
         {
           _id: '3', rating: 5, text: 'Test 3', 
           createTime: date, user: user._id, subject: subject._id, tags:[tag2._id]}).save();
-      tag1.articles.push(article1._id);
-      tag2.articles.push(article1._id, article2._id, article3._id);
-      tag3.articles.push(article1._id, article2._id);
-      tag1.save();
-      tag2.save();
-      tag3.save();
       let res = await request(server)
         .get('/content/tags')
         .expect(200);
       res.text.should.be.eql(JSON.stringify({tags: [
-        { _id: '2', name: 'Tag2', articles:[article1._id, article2._id, article3._id]},
-        { _id: '3', name: 'Tag3', articles:[article1._id, article2._id]},
-        { _id: '1', name: 'Tag1', articles:[article1._id]}]}));
+        { _id: '2', name: 'Tag2', articleCount: 3},
+        { _id: '3', name: 'Tag3', articleCount: 2},
+        { _id: '1', name: 'Tag1', articleCount: 1}]}));
     });
     
     it('should get tags by name', async () => {
-      await new mongoose.models['Tag']({ _id: '1', name: 'Tag1'}).save();
-      await new mongoose.models['Tag']({ _id: '2', name: 'Tag2'}).save();
+      let tag1 = await new mongoose.models['Tag']({ _id: '1', name: 'Tag1'}).save();
+      let tag2 = await new mongoose.models['Tag']({ _id: '2', name: 'Tag2'}).save();
+      let date = Date.now() - 2000;
+      let user = await new mongoose.models['User'](userParams).save();
+      let subject = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject'}).save();
+      let article1 = await new mongoose.models['Article'](
+        {
+          _id: '1', rating: 5, text: 'Test 1', 
+          createTime: date, user: user._id, subject: subject._id, tags:[tag1._id, tag2._id]}).save();
+      let article2 = await new mongoose.models['Article'](
+        {
+          _id: '2', rating: 5, text: 'Test 2', 
+          createTime: date, user: user._id, subject: subject._id, tags:[tag2._id]}).save();
       let res = await request(server)
         .get('/content/tags')
+        .query({name: '1'})
         .expect(200);
       res.text.should.be.eql(JSON.stringify({tags: [
-        {_id: '1', name: 'Tag1', articles:[]},
-        {_id: '2', name: 'Tag2', articles:[]}]}));
+        {_id: '1', name: 'Tag1', articleCount: 1}
+      ]}));
     });
   });
 
@@ -342,17 +352,13 @@ describe('ContentService', () => {
         rating: articleParam.rating,
         subject: article.subject,
         tags: [],
-        comments: [],
         views: 0,
         user: user._id
       });
       Date(article.createTime).should.be.eql(Date(Date.now()));
       let subject = await mongoose.models['Subject'].findById(article.subject).lean();
       subject.name.should.be.eql(articleParam.subject);
-      subject.articles.should.be.eql([article._id]);
       subject.rating.should.be.eql(articleParam.rating);
-      let userM = await mongoose.models['Subject'].findById(article.subject).lean();
-      userM.articles.should.be.eql([article._id]);
     });
 
     it('should create article with tags', async () => {
@@ -369,15 +375,7 @@ describe('ContentService', () => {
       Date(article.createTime).should.be.eql(Date(Date.now()));
       let subject = await mongoose.models['Subject'].findById(article.subject).lean();
       subject.name.should.be.eql(articleParam.subject);
-      subject.articles.should.be.eql([article._id]);
       subject.rating.should.be.eql(articleParam.rating);
-      let userM = await mongoose.models['Subject'].findById(article.subject).lean();
-      userM.articles.should.be.eql([article._id]);
-      let tags = await mongoose.models['Tag'].find().lean();
-      tags.should.be.eql([
-        {_id: article.tags[0], name: 'Tag1', articles: [article._id]},
-        {_id: article.tags[1], name: 'Tag2', articles: [article._id]}
-      ]);
     });
 
     it('should create article and update already created subject and tags', async () => {
@@ -389,10 +387,6 @@ describe('ContentService', () => {
         {
           _id: '1', rating: 4, text: 'Test 1', 
           createTime: Date.now(), user: user._id, subject: sub._id, tags: [tag._id]}).save();
-      sub.articles.push(art._id);
-      tag.articles.push(art._id);
-      await sub.save();
-      await tag.save();
       let res = await request(server)
         .post('/content/create/article')
         .send(articleParam)
@@ -403,11 +397,8 @@ describe('ContentService', () => {
       article.user.should.be.eql(user._id);
       article.subject.should.be.eql(sub._id);
       article.tags.should.be.eql([tag._id]);
-      let tagUp = await mongoose.models['Tag'].findById(tag._id).lean();
       let subUp = await mongoose.models['Subject'].findById(sub._id).lean();
       subUp.rating.should.be.eql(3.5);
-      subUp.articles.should.be.eql(['1', article._id]);
-      tagUp.articles.should.be.eql(['1', article._id]);
     });
   });
 
@@ -428,7 +419,7 @@ describe('ContentService', () => {
     };
     const subject = {
       _id: '1',
-      rating: 3.5,
+      rating: 2.5,
       name: 'Subject'
     };
     const article = {
@@ -442,15 +433,15 @@ describe('ContentService', () => {
 
     beforeEach(async () => {
       await mongoose.models['User'].create(user);
-      let sub = await mongoose.models['Subject'].create(subject);
+      await mongoose.models['Subject'].create(subject);
       await mongoose.models['Article'].create(article);
-      sub.articles = [article.id, '2'];
-      await sub.save();
+      await mongoose.models['Article'].create({...article, _id: 12, rating: 2});
       token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
     });
 
     it('should return UnauthorizedError if auth wrong user', async () => {
       let wrongToken = jwt.sign({sub: '2'}, conf.secret, {expiresIn: '7d'});
+      await mongoose.models['User'].create({...user, _id: '2'});
       await request(server)
         .put('/content/article/1')
         .send({
@@ -511,7 +502,7 @@ describe('ContentService', () => {
       let art = await mongoose.models['Article'].findById(article._id).lean();
       art.rating.should.be.eql(5);
       let sub = await mongoose.models['Subject'].findById(article.subject).lean();
-      sub.rating.should.be.eql(4.5);
+      sub.rating.should.be.eql(3.5);
     });
   });
 
@@ -602,9 +593,6 @@ describe('ContentService', () => {
       comment.user.should.be.eql(user._id);
       comment.article.should.be.eql(commentParam.article);
       let art = await mongoose.models['Article'].findById(commentParam.article).lean();
-      art.comments.should.be.eql([res.body._id]);
-      let us = await mongoose.models['User'].findById(user._id).lean();
-      us.comments.should.be.eql([res.body._id]);
     });
   });
 
@@ -656,6 +644,7 @@ describe('ContentService', () => {
 
     it('should return UnauthorizedError if auth wrong user', async () => {
       let wrongToken = jwt.sign({sub: '2'}, conf.secret, {expiresIn: '7d'});
+      await mongoose.models['User'].create({...user, _id: '2'});
       await request(server)
         .put('/content/comment/1')
         .send({

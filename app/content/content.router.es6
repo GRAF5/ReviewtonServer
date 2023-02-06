@@ -4,8 +4,15 @@ import express from 'express';
 
 export default class ContentRouter {
 
-  constructor({contentService}) {
+  /**
+   * Constructs content router
+   * @param {Object} param0 
+   * @param {ContentService} contentService content service
+   * @param {AuthorizationService} authorizationService authorization service
+   */
+  constructor({contentService, authorizationService}) {
     this._contentService = contentService;
+    this._authorization = authorizationService;
   }
 
   /**
@@ -201,19 +208,23 @@ export default class ContentRouter {
       .get(this._contentService.getTags.bind(this._contentService));
 
     router.route('/content/create/article')
-      .post(this._contentService.createArticle.bind(this._contentService));
+      .post(this._authorization.authorize(),
+        this._contentService.createArticle.bind(this._contentService));
 
     router.route('/content/article/:id')
-      .put(this._contentService.updateArticle.bind(this._contentService));
+      .put(this._authorization.authorize(),
+        this._contentService.updateArticle.bind(this._contentService));
 
     router.route('/content/comments')
       .get(this._contentService.getComments.bind(this._contentService));
       
     router.route('/content/comment/:id')
-      .put(this._contentService.updateComment.bind(this._contentService));
+      .put(this._authorization.authorize(),
+        this._contentService.updateComment.bind(this._contentService));
 
     router.route('/content/create/comment')
-      .post(this._contentService.createComment.bind(this._contentService));
+      .post(this._authorization.authorize(),
+        this._contentService.createComment.bind(this._contentService));
 
     return router;
   }

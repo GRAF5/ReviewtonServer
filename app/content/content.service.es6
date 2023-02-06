@@ -59,7 +59,8 @@ export default class ContentService {
     let article;
     try {
       await this._validateCreateArticles(req);
-      let user = await this._userModel.findOne({_id: req.auth.sub});
+      const userId = res.locals.user._id;
+      let user = await this._userModel.findOne({_id: userId});
       let subject = await this._subjectModel.findOne({name: req.body.subject});
       if (!subject) {
         subject = new this._subjectModel({ _id: v4(), name: req.body.subject});
@@ -80,20 +81,14 @@ export default class ContentService {
         rating: req.body.rating,
         text: req.body.text,
         createTime: new Date(),
-        user: req.auth.sub,
+        user: userId,
         subject,
         tags: tags.map(t => t._id)
       }).save();
-      subject.rating = ((subject.rating * subject.articles.length || 0) + article.rating) /
-        (subject.articles.length + 1);
-      subject.articles.push(article._id);
+      let count = await this._articleModel.find({subject: subject._id}).count();
+      subject.rating = ((subject.rating * (count - 1) || 0) + article.rating) /
+        count;
       await subject.save();
-      tags.forEach(async (tag) => {
-        tag.articles.push(article._id);
-        await tag.save();
-      });
-      user.articles.push(article._id);
-      await user.save();
       res.status(200).json({_id: article._id});
     } catch (err) {
       this._logger.error('Error creating article', err);
@@ -140,7 +135,8 @@ export default class ContentService {
     try {
       await this._validateUpdateArticle(req);
       let article = await this._articleModel.findOne({_id: req.params.id});
-      if (article.user !== req.auth.sub) {
+      const userId = res.locals.user._id;
+      if (article.user !== userId) {
         throw new UnauthorizedError('Wrong user defined');
       }
       if (req.body.text !== article.text) {
@@ -151,7 +147,8 @@ export default class ContentService {
         article.rating = req.body.rating;
         await article.save();
         let subject = await this._subjectModel.findOne({_id: article.subject});
-        subject.rating = (subject.rating * subject.articles.length + dif) / subject.articles.length;
+        let count = await this._articleModel.find({subject: subject._id}).count();
+        subject.rating = (subject.rating * count + dif) / count;
         await subject.save();
       } else {
         await article.save();
@@ -208,19 +205,14 @@ export default class ContentService {
     let comment;
     try {
       await this._validateCreateComment(req);
-      let user = await this._userModel.findOne({_id: req.auth.sub});
-      let article = await this._articleModel.findOne({_id: req.body.article});
+      const userId = res.locals.user._id;
       comment = await new this._commentModel({
         _id: v4(),
         text: req.body.text,
-        user: req.auth.sub,
+        user: userId,
         article: req.body.article,
         createTime: Date.now()
       }).save();
-      article.comments.push(comment._id);
-      article.save();
-      user.comments.push(comment._id);
-      user.save();
       res.status(200).json({_id: comment._id});
     } catch (err) {
       this._logger.error('Error creating comment', err);
@@ -264,7 +256,8 @@ export default class ContentService {
     try {
       await this._validateUpdateComment(req);
       let comment = await this._commentModel.findOne({_id: req.params.id});
-      if (comment.user !== req.auth.sub) {
+      const userId = res.locals.user._id;
+      if (comment.user !== userId) {
         throw new UnauthorizedError('Wrong user defined');
       }
       comment.text = req.body.text;
