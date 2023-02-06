@@ -325,7 +325,7 @@ describe('UserService', () => {
         .expect(400);
     });
 
-    it('should return article validation error when defined wrong article', async () => {
+    it('should return return not found for not existed article', async () => {
       params.article = '2';
       await request(server)
         .put('/user/1/viewed')
@@ -384,8 +384,7 @@ describe('UserService', () => {
       text: 'Article',
       user: user._id,
       subject: subject._id,
-      createTime: Date.now(),
-      comments: []
+      createTime: Date.now()
     };
     let token;
 

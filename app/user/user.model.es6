@@ -15,8 +15,8 @@ export default class UserModel {
       email: {type: String, required: true},
       hash: {type: String, required: true},
       salt: {type: String, required: true},
-      articles: [{type: Schema.Types.String, ref: 'Article', default: []}],
-      comments: [{type: Schema.Types.String, ref: 'Comment', default: []}],
+      role: {type: String, enum: ['user', 'moderator', 'admin', 'super-admin'], default: 'user'},
+      permissions: {type: [String], default: []},
       viewed: [{type: Schema.Types.String, ref: 'Article', default: []}]
     };
     const schema = new mongoose.Schema(fields, {versionKey: false});

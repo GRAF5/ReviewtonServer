@@ -43,6 +43,20 @@ export class ApiError extends Error {
 }
 
 /**
+ * Bad request error that throw 400 (Bad Request) HTTP response code
+ */
+export class BadRequestError extends ApiError {
+
+  /**
+   * Validation error constructor
+   * @param {String} message error message 
+   */
+  constructor(message) {
+    super (ValidationError, message, 400);
+  }
+}
+
+/**
  * Validation error that throw 400 (Bad Request) HTTP response code
  */
 export class ValidationError extends ApiError {
@@ -66,9 +80,36 @@ export class UnauthorizedError extends ApiError {
   /**
    * Unauthorized error constructor
    * @param {String} message error message 
-   * @param {Object} details error details
    */
   constructor(message) {
-    super (ValidationError, message, 401);
+    super (UnauthorizedError, message, 401);
+  }
+}
+
+/**
+ * Forbidden error that throw 403 (Forbidden) HTTP response code
+ */
+export class ForbiddenError extends ApiError {
+
+  /**
+   * Forbidden error constructor
+   * @param {String} message error message 
+   */
+  constructor(message) {
+    super (ForbiddenError, message, 403);
+  }
+}
+
+/**
+ * Not found error that throw 404 (Not Found) HTTP response code
+ */
+export class NotFoundError extends ApiError {
+
+  /**
+   * Not found error constructor
+   * @param {String} message error message 
+   */
+  constructor(message) {
+    super (NotFoundError, message, 404);
   }
 }
