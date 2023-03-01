@@ -23,7 +23,7 @@ import ContentService from './content/content.service.es6';
 import AuthorizationRouter from './authorization/authorization.router.es6';
 import AuthorizationService from './authorization/authorization.service.es6';
 
-const config = require('./config.js');
+const config = process.env.CONFIG ? require(process.env.CONFIG) : require('./config.js');
 
 /**
  * Server service class
