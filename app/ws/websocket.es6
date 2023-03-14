@@ -72,13 +72,10 @@ export default class Websocket {
             const next = err => {
               index++;
               if (!err && index < listeners.length) {
-                listeners[index](context, next)
+                listeners[index](context, next);
               }
             };
             next();
-            // for (let listener of listeners) {
-            //   await listener(context, () => {});
-            // }
           };
           this._sockets.push(socket);
           socket.join(socket.id);
