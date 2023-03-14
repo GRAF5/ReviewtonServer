@@ -39,6 +39,7 @@ export default class UserService {
       const permissions = [
         'create-article',
         'update-article',
+        'estimate-article',
         'create-comment',
         'update-comment'
       ];
@@ -126,62 +127,66 @@ export default class UserService {
     }
   }
 
-  /**
-   * Add viewed article to user
-   */
-  async addViewed(req, res, next) {
-    try {
-      await this._validateAddViewed(req);
-      const userId = res.locals.user._id;
-      let user = await this._userModel.findOne({_id: userId});
-      let article = await this._articleModel.findOne({_id: req.body.article});
-      if (user.viewed.indexOf(article._id) === -1) {
-        article.views++;
-        await article.save();
-        user.viewed.push(article._id);
-        await user.save();
-      }
-      return res.status(200).send();
-    } catch (err) {
-      this._logger.error('Error while add viewed article', err);
-      next(err);
-    }
-  }
+  // /**
+  //  * Add viewed article to user
+  //  */
+  // async addViewed(req, res, next) {
+  //   try {
+  //     await this._validateAddViewed(req);
+  //     const userId = res.locals.user._id;
+  //     let user = await this._userModel.findOne({_id: userId});
+  //     let article = await this._articleModel.findOne({_id: req.body.article});
+  //     if (user.viewed.indexOf(article._id) === -1) {
+  //       article.views++;
+  //       await article.save();
+  //       user.viewed.push(article._id);
+  //       await user.save();
+  //     }
+  //     return res.status(200).send();
+  //   } catch (err) {
+  //     this._logger.error('Error while add viewed article', err);
+  //     next(err);
+  //   }
+  // }
 
-  async _validateAddViewed(req) {
-    try {
-      let validations = [
-        body('article')
-          .notEmpty().withMessage('Необхідно вказати статтю')
-          .custom((value) => {
-            let query = this._articleModel.findOne({ _id: value});
-            return query.exec().then(article => {
-              if (!article) {
-                return Promise.reject('Статті не знайдено');
-              }
-            });
-          })
-      ];
-      await this._validate(req, validations);
-    } catch (err) {
-      throw new ValidationError('Add viewed article error', err);
-    }
-  }
+  // async _validateAddViewed(req) {
+  //   try {
+  //     let validations = [
+  //       body('article')
+  //         .notEmpty().withMessage('Необхідно вказати статтю')
+  //         .custom((value) => {
+  //           let query = this._articleModel.findOne({ _id: value});
+  //           return query.exec().then(article => {
+  //             if (!article) {
+  //               return Promise.reject('Статті не знайдено');
+  //             }
+  //           });
+  //         })
+  //     ];
+  //     await this._validate(req, validations);
+  //   } catch (err) {
+  //     throw new ValidationError('Add viewed article error', err);
+  //   }
+  // }
 
-  /**
-   * Get user viewed articles
-   */
-  async getViewed(req, res, next) {
-    try {
-      const userId = res.locals.user._id;
-      let user = await this._userModel.findOne({_id: userId});
-      let articles = await this._articleModel.find({_id: {$in: user.viewed}});
-      return res.status(200).json({articles});
-    } catch (err) {
-      this._logger.error('Error while get viewed article', err);
-      next(err);
-    }
-  }
+  // /**
+  //  * Get user viewed articles
+  //  */
+  // async getViewed(req, res, next) {
+  //   try {
+  //     const userId = res.locals.user._id;
+  //     let user = await this._userModel.findOne({_id: userId});
+  //     let articles = await this._articleModel.find({_id: {$in: user.viewed}});
+  //     for (let article of articles) {
+  //       let commentsCount = await this._commentModel.find({article: article._id}).count();
+  //       article.commentsCount = commentsCount;
+  //     }
+  //     return res.status(200).json({articles});
+  //   } catch (err) {
+  //     this._logger.error('Error while get viewed article', err);
+  //     next(err);
+  //   }
+  // }
 
   async _validate(req, validations) {
     await Promise.all(validations.map(validation => validation.run(req)));

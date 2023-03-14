@@ -2,6 +2,7 @@
 
 import { createContainer, asClass, InjectionMode, asValue } from 'awilix';
 import express from 'express';
+import http from 'http';
 import { expressjwt } from 'express-jwt';
 import swagger from 'swagger-ui-express';
 import swaggerJSDoc from 'swagger-jsdoc';
@@ -22,6 +23,8 @@ import ContentRouter from './content/content.router.es6';
 import ContentService from './content/content.service.es6';
 import AuthorizationRouter from './authorization/authorization.router.es6';
 import AuthorizationService from './authorization/authorization.service.es6';
+import Websocket from './ws/websocket.es6';
+import ContentSocketService from './content/contentSocket.service.es6';
 
 const config = process.env.CONFIG ? require(process.env.CONFIG) : require('./config.js');
 
@@ -50,17 +53,21 @@ export default class Service {
     this._initServer(conf);
     await this.connectDB(conf)
       .then(() => {
-        this._server.listen(conf.port, () => {
+        this._connection = this._httpServer.listen(conf.port, () => {
           this._logger.info(`Server listening on ${conf.port}`);
         });
         this._registerShutdown();
       });
+    await this._container.resolve('websocket').start(this._httpServer);
+    await this._container.resolve('contentSocketService').start();
   }
 
   /**
    * Stop server service
    */
   async stop() {
+    await this._container.resolve('contentSocketService').stop();
+    await this._container.resolve('websocket').stop();
     this._server = null;
     this._routers = [];
     if (this._db) {
@@ -82,6 +89,7 @@ export default class Service {
       promise.rejected = true;
       reject(err);
     };
+    this._logger.info('Server stopped, terminating...');
     log4js.shutdown((err) => {
       if (err) {
         promise.reject(err);
@@ -89,6 +97,9 @@ export default class Service {
       promise.resolve();
     });
     await promise;
+    if (this._connection) {
+      await new Promise((res, rej) => this._connection.close(err => err ? rej(err) : res()));
+    }
   }
 
   /**
@@ -107,7 +118,9 @@ export default class Service {
       contentRouter: asClass(ContentRouter).singleton(),
       contentService: asClass(ContentService).singleton(),
       authorizationRouter: asClass(AuthorizationRouter).singleton(),
-      authorizationService: asClass(AuthorizationService).singleton()
+      authorizationService: asClass(AuthorizationService).singleton(),
+      websocket: asClass(Websocket).singleton(),
+      contentSocketService: asClass(ContentSocketService).singleton()
     });
   }
 
@@ -138,6 +151,7 @@ export default class Service {
    */
   _initServer(conf) {
     this._server = express();
+    this._httpServer = http.createServer(this._server);
     this.registerServices(conf);
     this.registerRouters();
     //this._server.use(this._jwt(conf));
@@ -191,7 +205,6 @@ export default class Service {
    */
   _registerShutdown() {
     let shutdown = () => this.stop()
-      .then(() => this._logger.info('Server stopped, terminating...'))
       .then(() => process.exit(), () => process.exit());
       
     process.on('SIGTERM', shutdown);
@@ -219,10 +232,10 @@ export default class Service {
       }
     };
     const defaultAppenders = ['file'];
-    if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging') {
-      appenders.console = {type: 'console'};
-      defaultAppenders.push('console');
-    }
+    // if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging') {
+    appenders.console = {type: 'console'};
+    defaultAppenders.push('console');
+    // }
     const categories = {
       default: {
         appenders: defaultAppenders,

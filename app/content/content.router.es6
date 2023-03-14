@@ -202,29 +202,35 @@ export default class ContentRouter {
     const router = express.Router();
 
     router.route('/content/articles')
-      .get(this._contentService.getArticles.bind(this._contentService));
+      .post(this._authorization.authorize('create-article'),
+        this._contentService.createArticle.bind(this._contentService))
+      .get(this._authorization.authorize(),
+        this._contentService.getArticles.bind(this._contentService));
+
+    router.route('/content/articles/:articleId')
+      .put(this._authorization.authorize('update-article'),
+        this._contentService.updateArticle.bind(this._contentService));
+
+    // router.route('/content/articles/:articleId/comments')    
+    //   .post(this._authorization.authorize('create-comment'),
+    //     this._contentService.createComment.bind(this._contentService))
+    //   .get(this._contentService.getComments.bind(this._contentService));
+      
+    // router.route('/content/articles/:articleId/comments/:commentId')
+    //   .post(this._authorization.authorize('create-comment'),
+    //     this._contentService.createAnswer.bind(this._contentService))
+    //   .put(this._authorization.authorize('update-comment'),
+    //     this._contentService.updateComment.bind(this._contentService));
+      
+    // router.route('/content/articles/:articleId/comments/:commentId/answers')
+    //   .get(this._contentService.getAnswers.bind(this._contentService));
 
     router.route('/content/tags')
       .get(this._contentService.getTags.bind(this._contentService));
 
-    router.route('/content/create/article')
-      .post(this._authorization.authorize(),
-        this._contentService.createArticle.bind(this._contentService));
-
-    router.route('/content/article/:id')
-      .put(this._authorization.authorize(),
-        this._contentService.updateArticle.bind(this._contentService));
-
-    router.route('/content/comments')
-      .get(this._contentService.getComments.bind(this._contentService));
-      
-    router.route('/content/comment/:id')
-      .put(this._authorization.authorize(),
-        this._contentService.updateComment.bind(this._contentService));
-
-    router.route('/content/create/comment')
-      .post(this._authorization.authorize(),
-        this._contentService.createComment.bind(this._contentService));
+    // router.route('/content/estimate/articles/:articleId')
+    //   .put(this._authorization.authorize(),
+    //     this._contentService.estimateArticle.bind(this._contentService));
 
     return router;
   }
