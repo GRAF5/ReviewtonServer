@@ -130,11 +130,11 @@ export default class UserRouter {
     router.route('/user/authenticate')
       .post(this._userService.authenticate.bind(this._userService));
 
-    router.route('/user/:id/viewed')
-      .get(this._authorization.authorize(),
-        this._userService.getViewed.bind(this._userService))
-      .put(this._authorization.authorize(),
-        this._userService.addViewed.bind(this._userService));
+    // router.route('/user/:id/viewed')
+    //   .get(this._authorization.authorize(),
+    //     this._userService.getViewed.bind(this._userService))
+    //   .put(this._authorization.authorize(),
+    //     this._userService.addViewed.bind(this._userService));
 
     return router;
   }

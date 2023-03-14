@@ -13,7 +13,8 @@ export default class CommentModel {
       text: {type: String, required: true},
       createTime: {type: Date, required: true},
       user: {type: Schema.Types.String, required: true, ref: 'User'},
-      article: {type: Schema.Types.String, required: true, ref: 'Article'}
+      article: {type: Schema.Types.String, required: true, ref: 'Article'},
+      comment: {type: Schema.Types.String, required: false, ref: 'Comment'}
     };
     const schema = new mongoose.Schema(fields, {versionKey: false});
     this._model = mongoose.model('Comment', schema);
