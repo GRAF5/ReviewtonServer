@@ -27,9 +27,10 @@ export default class Database {
         this._logger.error('Connection error', err);
         this._reconnect();
       });
-      this._logger.debug('Connected to the database');
+      this._logger.info('Connected to the database');
     } catch (err) {
       this._logger.error('Connect error', err);
+      this._reconnect();
     }
   }
 

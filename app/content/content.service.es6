@@ -5,6 +5,7 @@ import log4js from 'log4js';
 import { ValidationError } from '../errorHandler/errorHandler.es6';
 import { v4 } from 'uuid';
 import { UnauthorizedError } from '../errorHandler/errorHandler.es6';
+import { NotFoundError } from '../errorHandler/errorHandler.es6';
 
 /**
  * Class for content request
@@ -42,6 +43,22 @@ export default class ContentService {
       const subjects = await this._subjectModel.getIdsByName(name);
       const users = await this._userModel.find({ login: {$regex: name} }).select('_id');
       let articles = await this._articleModel.getAllOrBySubjectOrUserOrTags(subjects, users, tags, limit, offset);
+      for (let article of articles) {
+        let reactions = await this._userModel.getAritcleReactions(article._id);
+        let likes = 0, dislikes = 0;
+        reactions.forEach(user => {
+          if (user.reaction) {
+            likes++;
+          } else {
+            dislikes++;
+          }
+          if (user._id === (res.locals.user || {})._id) {
+            article.userReaction = user.reaction;
+          }
+        });
+        article.likes = likes;
+        article.dislikes = dislikes;
+      }
       return res.status(200).json({articles});
     } catch (err) {
       this._logger.error('Error getting articles', err);
@@ -134,7 +151,7 @@ export default class ContentService {
   async updateArticle(req, res, next) {
     try {
       await this._validateUpdateArticle(req);
-      let article = await this._articleModel.findOne({_id: req.params.id});
+      let article = await this._articleModel.findOne({_id: req.params.articleId});
       const userId = res.locals.user._id;
       if (article.user !== userId) {
         throw new UnauthorizedError('Wrong user defined');
@@ -163,7 +180,7 @@ export default class ContentService {
   async _validateUpdateArticle(req) {
     try {
       let validations = [
-        param('id')
+        param('articleId')
           .notEmpty().withMessage('Необхідно вказати статтю')
           .custom((value) => {
             let query = this._articleModel.findOne({ _id: value});
@@ -183,6 +200,47 @@ export default class ContentService {
     }
   }
 
+  // async estimateArticle(req, res, next) {
+  //   try {
+  //     await this._validateEstimateArticle(req);
+  //     let article = await this._articleModel.findOne({_id: req.params.articleId});
+  //     if (req.body.grade) {
+  //       article.likes++;
+  //     } else {
+  //       article.dislikes++;
+  //     }
+  //     await article.save();
+  //     article.commentsCount = await this._commentModel.find({article: req.params.article._id}).count();
+  //     res.status(202).json(article);
+  //   } catch (err) {
+  //     this._logger.error('Failed to rate article', err);
+  //     next(err);
+  //   }
+  // }
+
+  // async _validateEstimateArticle(req) {
+  //   try {
+  //     let validations = [
+  //       param('articleId')
+  //         .notEmpty().withMessage('Необхідно вказати статтю')
+  //         .custom((value) => {
+  //           let query = this._articleModel.findOne({ _id: value});
+  //           return query.exec().then(article => {
+  //             if (!article) {
+  //               return Promise.reject('Статті не знайдено');
+  //             }
+  //           });
+  //         }),
+  //       body('grade')
+  //         .notEmpty().withMessage('Необхідно вказати лайк чи дізлайк')
+  //         .isBoolean().withMessage('Оцінка має бути true чи false')
+  //     ];
+  //     await this._validate(req, validations);
+  //   } catch (err) {
+  //     throw new ValidationError('Estimate article error', err);
+  //   }
+  // }
+
   /**
    * Gat tags ordered by articles count
    */
@@ -198,139 +256,225 @@ export default class ContentService {
     }
   }
 
-  /**
-   * Create new comment
-   */
-  async createComment(req, res, next) {
-    let comment;
-    try {
-      await this._validateCreateComment(req);
-      const userId = res.locals.user._id;
-      comment = await new this._commentModel({
-        _id: v4(),
-        text: req.body.text,
-        user: userId,
-        article: req.body.article,
-        createTime: Date.now()
-      }).save();
-      res.status(200).json({_id: comment._id});
-    } catch (err) {
-      this._logger.error('Error creating comment', err);
-      try {
-        if (comment) {
-          await this._commentModel.deleteOne({_id: comment._id});
-        }
-      } catch (e) {
-        this._logger.error('Can not clear data create comment error', e);
-      }
-      next(err);
-    }
-  }
+  // /**
+  //  * Create new comment
+  //  */
+  // async createComment(req, res, next) {
+  //   let comment;
+  //   try {
+  //     await this._validateCreateComment(req);
+  //     const userId = res.locals.user._id;
+  //     comment = await new this._commentModel({
+  //       _id: v4(),
+  //       text: req.body.text,
+  //       user: userId,
+  //       article: req.params.articleId,
+  //       createTime: Date.now()
+  //     }).save();
+  //     res.status(200).json({_id: comment._id});
+  //   } catch (err) {
+  //     this._logger.error('Error creating comment', err);
+  //     try {
+  //       if (comment) {
+  //         await this._commentModel.deleteOne({_id: comment._id});
+  //       }
+  //     } catch (e) {
+  //       this._logger.error('Can not clear data create comment error', e);
+  //     }
+  //     next(err);
+  //   }
+  // }
 
-  async _validateCreateComment(req) {
-    try {
-      let validations = [
-        body('text')
-          .not().matches(/^(\s+|)$/).withMessage('Необхідно вказати текст'),
-        body('article')
-          .notEmpty().withMessage('Необхідно вказати статтю')
-          .custom((value) => {
-            let query = this._articleModel.findOne({ _id: value});
-            return query.exec().then(article => {
-              if (!article) {
-                return Promise.reject('Статті не знайдено');
-              }
-            });
-          })
-      ];
-      await this._validate(req, validations);
-    } catch (err) {
-      throw new ValidationError('Create comment error', err);
-    }
-  }
+  // async _validateCreateComment(req) {
+  //   try {
+  //     let validations = [
+  //       body('text')
+  //         .not().matches(/^(\s+|)$/).withMessage('Необхідно вказати текст'),
+  //       param('articleId')
+  //         .notEmpty().withMessage('Необхідно вказати статтю')
+  //         .custom((value) => {
+  //           let query = this._articleModel.findOne({ _id: value});
+  //           return query.exec().then(article => {
+  //             if (!article) {
+  //               return Promise.reject('Статті не знайдено');
+  //             }
+  //           });
+  //         })
+  //     ];
+  //     await this._validate(req, validations);
+  //   } catch (err) {
+  //     throw new ValidationError('Create comment error', err);
+  //   }
+  // }
 
-  /**
-   * Update comment 
-   */
-  async updateComment(req, res, next) {
-    try {
-      await this._validateUpdateComment(req);
-      let comment = await this._commentModel.findOne({_id: req.params.id});
-      const userId = res.locals.user._id;
-      if (comment.user !== userId) {
-        throw new UnauthorizedError('Wrong user defined');
-      }
-      comment.text = req.body.text;
-      await comment.save();
-      res.status(200).send();
-    } catch (err) {
-      this._logger.error('Error updating comment', err);
-      next(err);
-    }
-  }  
+  // /**
+  //  * Update comment 
+  //  */
+  // async updateComment(req, res, next) {
+  //   try {
+  //     await this._validateUpdateComment(req);
+  //     let comment = await this._commentModel.findOne({_id: req.params.commentId});
+  //     const userId = res.locals.user._id;
+  //     if (comment.user !== userId) {
+  //       throw new UnauthorizedError('Wrong user defined');
+  //     }
+  //     comment.text = req.body.text;
+  //     await comment.save();
+  //     res.status(200).send();
+  //   } catch (err) {
+  //     this._logger.error('Error updating comment', err);
+  //     next(err);
+  //   }
+  // }  
 
-  async _validateUpdateComment(req) {
-    try {
-      let validations = [
-        param('id')
-          .notEmpty().withMessage('Необхідно вказати комент')
-          .custom((value) => {
-            let query = this._commentModel.findOne({ _id: value});
-            return query.exec().then(comment => {
-              if (!comment) {
-                return Promise.reject('Коменту не знайдено');
-              }
-            });
-          }),
-        body('text')
-          .not().matches(/^(\s+|)$/).withMessage('Необхідно вказати текст')
-      ];
-      await this._validate(req, validations);
-    } catch (err) {
-      throw new ValidationError('Update comment error', err);
-    }
-  }
+  // async _validateUpdateComment(req) {
+  //   try {
+  //     let validations = [
+  //       param('commentId')
+  //         .notEmpty().withMessage('Необхідно вказати комент')
+  //         .custom((value) => {
+  //           let query = this._commentModel.findOne({ _id: value});
+  //           return query.exec().then(comment => {
+  //             if (!comment) {
+  //               return Promise.reject('Коментаря не знайдено');
+  //             }
+  //           });
+  //         }),
+  //       body('text')
+  //         .not().matches(/^(\s+|)$/).withMessage('Необхідно вказати текст')
+  //     ];
+  //     await this._validate(req, validations);
+  //   } catch (err) {
+  //     throw new ValidationError('Update comment error', err);
+  //   }
+  // }
 
-  /**
-   * Get comments by article 
-   */
-  async getComments(req, res, next) {
-    try {
-      await this._validateGetComments(req);
-      const {limit, offset} = this._checkPagination(req);
-      let comments = await this._commentModel.find({article: req.body.article})
-        .sort('-createTime')
-        .skip(offset)
-        .limit(limit)
-        .populate('user', ['login'])
-        .lean();
-      return res.status(200).json({comments});
-    } catch (err) {
-      this._logger.error('Error getting comment', err);
-      next(err);
-    }
-  }
+  // /**
+  //  * Get comments by article 
+  //  */
+  // async getComments(req, res, next) {
+  //   try {
+  //     await this._validateGetComments(req);
+  //     const {limit, offset} = this._checkPagination(req);
+  //     let comments = await this._commentModel.find({article: req.params.articleId, comment: undefined})
+  //       .sort('createTime')
+  //       .skip(offset)
+  //       .limit(limit)
+  //       .populate('user', ['login'])
+  //       .lean();
+  //     for (let comment of comments) {
+  //       let replyCount = await this._commentModel.find({comment: comment._id}).count();
+  //       comment.replyCount = replyCount;
+  //     }
+  //     return res.status(200).json({comments});
+  //   } catch (err) {
+  //     this._logger.error('Error getting comment', err);
+  //     next(err);
+  //   }
+  // }
 
+  // /**
+  //  * Get comments by article 
+  //  */
+  // async getAnswers(req, res, next) {
+  //   try {
+  //     await this._validateGetComments(req);
+  //     const {limit, offset} = this._checkPagination(req);
+  //     let comments = await this._commentModel.find({article: req.params.articleId, comment: req.params.commentId})
+  //       .sort('createTime')
+  //       .skip(offset)
+  //       .limit(limit)
+  //       .populate('user', ['login'])
+  //       .lean();
+  //     for (let comment of comments) {
+  //       let replyCount = await this._commentModel.find({comment: comment._id}).count();
+  //       comment.replyCount = replyCount;
+  //     }
+  //     return res.status(200).json({comments});
+  //   } catch (err) {
+  //     this._logger.error('Error getting comment', err);
+  //     next(err);
+  //   }
+  // }
   
-  async _validateGetComments(req) {
-    try {
-      let validations = [
-        body('article')
-          .notEmpty().withMessage('Необхідно вказати статтю')
-          .custom((value) => {
-            let query = this._articleModel.findOne({ _id: value});
-            return query.exec().then(article => {
-              if (!article) {
-                return Promise.reject('Статті не знайдено');
-              }
-            });
-          })
-      ];
-      await this._validate(req, validations);
-    } catch (err) {
-      throw new ValidationError('Get comment error', err);
-    }
-  }
+  // async _validateGetComments(req) {
+  //   try {
+  //     let validations = [
+  //       param('articleId')
+  //         .notEmpty().withMessage('Необхідно вказати статтю')
+  //         .custom((value) => {
+  //           let query = this._articleModel.findOne({ _id: value});
+  //           return query.exec().then(article => {
+  //             if (!article) {
+  //               return Promise.reject('Статті не знайдено');
+  //             }
+  //           });
+  //         })
+  //     ];
+  //     await this._validate(req, validations);
+  //   } catch (err) {
+  //     throw new ValidationError('Get comment error', err);
+  //   }
+  // }
+
+  // async createAnswer(req, res, next) {
+  //   let answer;
+  //   try {
+  //     await this._validateCreateAnswer(req);
+  //     const userId = res.locals.user._id;
+  //     answer = await new this._commentModel({
+  //       _id: v4(),
+  //       text: req.body.text,
+  //       user: userId,
+  //       article: req.params.articleId,
+  //       createTime: Date.now(),
+  //       comment: req.params.commentId
+  //     }).save();
+  //     res.status(200).json({_id: answer._id});
+  //   } catch (err) {
+  //     this._logger.error('Error creating comment', err);
+  //     try {
+  //       if (answer) {
+  //         await this._commentModel.deleteOne({_id: answer._id});
+  //       }
+  //     } catch (e) {
+  //       this._logger.error('Can not clear data create comment error', e);
+  //     }
+  //     next(err);
+  //   }
+  // }
+  
+  // async _validateCreateAnswer(req) {
+  //   try {
+  //     let validations = [
+  //       body('text')
+  //         .not().matches(/^(\s+|)$/).withMessage('Необхідно вказати текст'),
+  //       param('articleId')
+  //         .notEmpty().withMessage('Необхідно вказати статтю')
+  //         .custom((value) => {
+  //           let query = this._articleModel.findOne({ _id: value});
+  //           return query.exec().then(article => {
+  //             if (!article) {
+  //               return Promise.reject('Статті не знайдено');
+  //             }
+  //           });
+  //         }),
+  //       param('commentId')
+  //         .notEmpty().withMessage('Необхідно вказати коментар')
+  //         .custom((value) => {
+  //           let query = this._commentModel.findOne({ _id: value});
+  //           return query.exec().then(article => {
+  //             if (!article) {
+  //               return Promise.reject('Коментаря не знайдено');
+  //             }
+  //           });
+  //         })
+  //     ];
+  //     await this._validate(req, validations);
+  //   } catch (err) {
+  //     throw new ValidationError('Create answer error', err);
+  //   }
+  // }
 
   _checkPagination(req) {
     let limit = req.query.limit ? +((+req.query.limit).toFixed()) : 25;

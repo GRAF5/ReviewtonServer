@@ -17,7 +17,8 @@ export default class UserModel {
       salt: {type: String, required: true},
       role: {type: String, enum: ['user', 'moderator', 'admin', 'super-admin'], default: 'user'},
       permissions: {type: [String], default: []},
-      viewed: [{type: Schema.Types.String, ref: 'Article', default: []}]
+      viewed: [{type: Schema.Types.String, ref: 'Article', default: []}],
+      reactions: {type: Object, default: {}}
     };
     const schema = new mongoose.Schema(fields, {versionKey: false});
     schema.set('validateBeforeSave', false);
@@ -45,7 +46,18 @@ export default class UserModel {
         });
       });
     };
+    schema.statics.getAritcleReactions = getAritcleReactions;
+    schema.statics.updateUser = updateUser;
     this._model = mongoose.model('User', schema);
+
+    async function getAritcleReactions(articleId) {
+      return await this.find({[`reactions.${articleId}`]: {$exists: true}}, 
+        {reaction: `$reactions.${articleId}`}).lean();
+    }
+
+    async function updateUser(_id, data) {
+      await this.updateOne({_id}, data);
+    }
   }
 
   get User() {
