@@ -28,6 +28,9 @@ export default class Websocket {
   start(server) {
     this._io = new Server(server, {
       // event: this._config.websocket.event,
+      connectionStateRecovery: {
+        maxDisconnectionDuration: 2 * 60 * 1000
+      },
       serveClient: false,
       cookie: false,
       cors: {}
@@ -63,32 +66,34 @@ export default class Websocket {
     try {
       const nsp = this._io.of(reg).on('connection', (socket) => {
         if (this._enabled) {
-          const invokeListeners = async (socketId, route, data, listeners) => {           
-            const context = {
-              socketId,
-              route,
-              data};
-            let index = -1;
-            const next = err => {
-              index++;
-              if (!err && index < listeners.length) {
-                listeners[index](context, next);
-              }
+          if (!socket.recovered) {
+            const invokeListeners = async (socketId, route, data, listeners) => {           
+              const context = {
+                socketId,
+                route,
+                data};
+              let index = -1;
+              const next = err => {
+                index++;
+                if (!err && index < listeners.length) {
+                  listeners[index](context, next);
+                }
+              };
+              next();
             };
-            next();
-          };
-          this._sockets.push(socket);
-          socket.join(socket.id);
-          socket.join(socket.nsp.name);
-          for (let route of routes) {
-            socket.on(route.event, async (packet) => {
-              const data = packet?.data || {}; 
-              await invokeListeners(socket.id, socket.nsp.name, data, route.listeners);
-            });//route.listener.bind(this, socket.id, socket.nsp.name));
+            this._sockets.push(socket);
+            socket.join(socket.id);
+            socket.join(socket.nsp.name);
+            for (let route of routes) {
+              socket.on(route.event, async (packet) => {
+                const data = packet?.data || {}; 
+                await invokeListeners(socket.id, socket.nsp.name, data, route.listeners);
+              });//route.listener.bind(this, socket.id, socket.nsp.name));
+            }
+            socket.on('disconnect', () => {
+              this._sockets.splice(this._sockets.indexOf(socket), 1);
+            });
           }
-          socket.on('disconnect', () => {
-            this._sockets.splice(this._sockets.indexOf(socket), 1);
-          });
         } else {
           socket.disconnect(true);
         }
