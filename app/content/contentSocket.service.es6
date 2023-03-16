@@ -54,55 +54,85 @@ export default class ContentSocketService {
     return v4();
   }
 
-  disconnect(context) {
-    const {socketId, route, data, user} = context;
-    if (this._intervals[socketId]) {
-      for (let id of Object.keys(this._intervals[socketId])) {
-        clearInterval(this._intervals[socketId][id]);
+  disconnect(context, next) {
+    try {
+      const {socketId, route, data, user} = context;
+      if (this._intervals[socketId]) {
+        for (let id of Object.keys(this._intervals[socketId])) {
+          clearInterval(this._intervals[socketId][id]);
+        }
+        delete this._intervals[socketId];
       }
-      delete this._intervals[socketId];
-    }
-    delete this._contexts[socketId];
-  }
-
-  articleFeedUnsubscribe(context) {
-    const {socketId, route, data, user} = context;
-    if (this._intervals[socketId]) {
-      clearInterval(this._intervals[socketId][data.article]);
-      delete this._intervals[socketId][data.article];
-    }
-    if (this._contexts[socketId]) {
-      delete this._contexts[socketId][data.article];
+      delete this._contexts[socketId];
+      next();
+    } catch (err) {
+      this._logger.error(`Failed to disconnect ${context.socketId}`, err);
+      next(err);
     }
   }
 
-  async articleFeedSubscribe(context) {
-    const {socketId, route, data, user} = context;
-    this._contexts[socketId] = _.defaultTo(this._contexts[socketId] || {});
-    this._intervals[socketId] = _.defaultTo(this._intervals[socketId] || {});
-    this._contexts[socketId][data.article] = {
-      userId: user?._id,
-      getComments: data.commentsRender || false
-    };
-    this._intervals[socketId][data.article] = process.env.NODE_ENV !== 'test' ? 
-      setInterval(this._articleFeedJob.bind(this), 
-        _.defaultTo(this._config.websocket.intarvalInSeconds, 60) * 1000, socketId, data.article) :
-      [socketId, data.article];
-    await this._articleFeedJob(socketId, data.article);
+  articleFeedUnsubscribe(context, next) {
+    try {
+      const {socketId, route, data, user} = context;
+      if (this._intervals[socketId]) {
+        clearInterval(this._intervals[socketId][data.article]);
+        delete this._intervals[socketId][data.article];
+      }
+      if (this._contexts[socketId]) {
+        delete this._contexts[socketId][data.article];
+      }
+      next();
+    } catch (err) {
+      this._logger.error(`Failed to article-feed:unsubscribe ${context.socketId}`, err);
+      next(err);
+    }
   }
 
-  async articleFeedSubscribeComments(context) {
-    const {socketId, route, data, user} = context;
-    this._contexts[socketId][data.article].getComments = true;
-    await this._articleFeedJob(socketId, data.article);
+  async articleFeedSubscribe(context, next) {
+    try {
+      const {socketId, route, data, user} = context;
+      this._contexts[socketId] = _.defaultTo(this._contexts[socketId] || {});
+      this._intervals[socketId] = _.defaultTo(this._intervals[socketId] || {});
+      this._contexts[socketId][data.article] = {
+        userId: user?._id,
+        getComments: data.commentsRender || false
+      };
+      this._intervals[socketId][data.article] = process.env.NODE_ENV !== 'test' ? 
+        setInterval(this._articleFeedJob.bind(this), 
+          _.defaultTo(this._config.websocket.intarvalInSeconds, 60) * 1000, socketId, data.article) :
+        [socketId, data.article];
+      await this._articleFeedJob(socketId, data.article);
+      next();
+    } catch (err) {
+      this._logger.error(`Failed to article-feed:subscribe ${context.socketId}`, err);
+      next(err);
+    }
   }
 
-  articleFeedUnsubscribeComments(context) {
-    const {socketId, route, data, user} = context;
-    this._contexts[socketId][data.article].getComments = false;
+  async articleFeedSubscribeComments(context, next) {
+    try {
+      const {socketId, route, data, user} = context;
+      this._contexts[socketId][data.article].getComments = true;
+      await this._articleFeedJob(socketId, data.article);
+      next();
+    } catch (err) {
+      this._logger.error(`Failed to article-feed:subscribe-comments ${context.socketId}`, err);
+      next(err);
+    }
   }
 
-  async articleFeedEstimateArticle(context) {
+  articleFeedUnsubscribeComments(context, next) {
+    try {
+      const {socketId, route, data, user} = context;
+      this._contexts[socketId][data.article].getComments = false;
+      next();
+    } catch (err) {
+      this._logger.error(`Failed to article-feed:unsubscribe-comments ${context.socketId}`, err);
+      next(err);
+    }
+  }
+
+  async articleFeedEstimateArticle(context, next) {
     try {
       const {socketId, route, data, user} = context;
       let userdoc = await this._userModel.findById(user._id).lean();
@@ -114,12 +144,14 @@ export default class ContentSocketService {
       }
       await this._userModel.updateUser(user._id, {reactions: userdoc.reactions});
       await this._articleFeedJob(socketId, data.article);
+      next();
     } catch (err) {
-      this._logger.error('Failed to estimate article', err);
+      this._logger.error(`Failed to estimate article ${context.socketId}`, err);
+      next(err);
     }
   }
 
-  async articleFeedUpsertComment(context) {
+  async articleFeedUpsertComment(context, next) {
     try {
       const {socketId, route, data, user} = context;
       let id = _.defaultTo(data._id, this._getId());
@@ -133,8 +165,11 @@ export default class ContentSocketService {
       comment.comment = data.comment;
       await this._commentModel.updateOne({_id: id}, {$set: comment}, {upsert: true});
       await this._articleFeedJob(socketId, data.article);
+      next();
     } catch (err) {
       this._logger.error('Failed to create comment', err);
+      this._logger.error(`Failed to create comment ${context.socketId}`, err);
+      next(err);
     }
   }
 
