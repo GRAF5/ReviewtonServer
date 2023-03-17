@@ -40,9 +40,102 @@ export default class ContentService {
       let name = req.query.name || '';
       const {limit, offset} = this._checkPagination(req);
       const tags = await this._tagModel.find({ name: {$regex: name}}).select('_id');
-      const subjects = await this._subjectModel.getIdsByName(name);
+      const subjects = await this._subjectModel.find({name: {$regex: name}}).select('_id');
       const users = await this._userModel.find({ login: {$regex: name} }).select('_id');
       let articles = await this._articleModel.getAllOrBySubjectOrUserOrTags(subjects, users, tags, limit, offset);
+      for (let article of articles) {
+        let reactions = await this._userModel.getAritcleReactions(article._id);
+        let likes = 0, dislikes = 0;
+        reactions.forEach(user => {
+          if (user.reaction) {
+            likes++;
+          } else {
+            dislikes++;
+          }
+          if (user._id === (res.locals.user || {})._id) {
+            article.userReaction = user.reaction;
+          }
+        });
+        article.likes = likes;
+        article.dislikes = dislikes;
+      }
+      return res.status(200).json({articles});
+    } catch (err) {
+      this._logger.error('Error getting articles', err);
+      next(err);
+    }
+  }
+
+  /**
+   * Get articles ordered by time
+   */
+  async getArticlesByUserId(req, res, next) {
+    try {
+      const {limit, offset} = this._checkPagination(req);
+      const userId = req.params.userId;
+      let articles = await this._articleModel.getAllOrBySubjectOrUserOrTags([], [{_id: userId}], [], limit, offset);
+      for (let article of articles) {
+        let reactions = await this._userModel.getAritcleReactions(article._id);
+        let likes = 0, dislikes = 0;
+        reactions.forEach(user => {
+          if (user.reaction) {
+            likes++;
+          } else {
+            dislikes++;
+          }
+          if (user._id === (res.locals.user || {})._id) {
+            article.userReaction = user.reaction;
+          }
+        });
+        article.likes = likes;
+        article.dislikes = dislikes;
+      }
+      return res.status(200).json({articles});
+    } catch (err) {
+      this._logger.error('Error getting articles', err);
+      next(err);
+    }
+  }
+
+  /**
+   * Get articles ordered by time
+   */
+  async getArticlesBySubjectId(req, res, next) {
+    try {
+      const {limit, offset} = this._checkPagination(req);
+      const subjectId = req.params.subjectId;
+      let articles = await this._articleModel.getAllOrBySubjectOrUserOrTags([{_id: subjectId}], [], [], limit, offset);
+      for (let article of articles) {
+        let reactions = await this._userModel.getAritcleReactions(article._id);
+        let likes = 0, dislikes = 0;
+        reactions.forEach(user => {
+          if (user.reaction) {
+            likes++;
+          } else {
+            dislikes++;
+          }
+          if (user._id === (res.locals.user || {})._id) {
+            article.userReaction = user.reaction;
+          }
+        });
+        article.likes = likes;
+        article.dislikes = dislikes;
+      }
+      return res.status(200).json({articles});
+    } catch (err) {
+      this._logger.error('Error getting articles', err);
+      next(err);
+    }
+  }
+
+  /**
+   * Get articles ordered by time
+   */
+  async getArticlesByTagId(req, res, next) {
+    try {
+      const {limit, offset} = this._checkPagination(req);
+      const tagId = req.params.tagId;
+      let articles = await this._articleModel.getAllOrBySubjectOrUserOrTags([], [], [{_id: tagId}], limit, offset);
       for (let article of articles) {
         let reactions = await this._userModel.getAritcleReactions(article._id);
         let likes = 0, dislikes = 0;
@@ -241,17 +334,57 @@ export default class ContentService {
   //   }
   // }
 
+  async getTagById(req, res, next) {
+    try {
+      let tagId = req.params.tagId;
+      let tag = await this._tagModel.findById(tagId);
+      if (!tag) {
+        throw new NotFoundError(`Not found Tag wit id ${tagId}`);
+      }
+      return res.status(200).json(tag);
+    } catch (err) {
+      this._logger.error('Error getting tag by id', err);
+      next(err);
+    }
+  }
+
   /**
    * Gat tags ordered by articles count
    */
   async getTags(req, res, next) {
     try {
-      let name = req.query.name || '';
+      let filter = req.query.filter || '';
       const {limit, offset} = this._checkPagination(req);
-      let tags = await this._tagModel.getTags(name, limit, offset);
+      let tags = await this._tagModel.getTags(filter, limit, offset);
       return res.status(200).json({tags});
     } catch (err) {
       this._logger.error('Error getting tags', err);
+      next(err);
+    }
+  }
+
+  async getSubjectById(req, res, next) {
+    try {
+      let subjectId = req.params.subjectId;
+      let subject = await this._subjectModel.findById(subjectId);
+      if (!subject) {
+        throw new NotFoundError(`Not found Subject wit id ${subjectId}`);
+      }
+      return res.status(200).json(subject);
+    } catch (err) {
+      this._logger.error('Error getting subject by id', err);
+      next(err);
+    }
+  }
+
+  async getSubjects(req, res, next) {
+    try {
+      let filter = req.query.filter || '';
+      const {limit, offset} = this._checkPagination(req);
+      let subjects = await this._subjectModel.getWithFilter(filter, limit, offset);
+      return res.status(200).json({subjects});
+    } catch (err) {
+      this._logger.error('Error getting subjects', err);
       next(err);
     }
   }

@@ -273,7 +273,7 @@ describe('ContentService', () => {
           createTime: date, user: user._id, subject: subject._id, tags:[tag2._id]}).save();
       let res = await request(server)
         .get('/content/tags')
-        .query({name: '1'})
+        .query({filter: '1'})
         .expect(200);
       res.text.should.be.eql(JSON.stringify({tags: [
         {_id: '1', name: 'Tag1', articleCount: 1}

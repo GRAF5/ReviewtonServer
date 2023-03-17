@@ -127,6 +127,24 @@ export default class UserService {
     }
   }
 
+  async getUserById(req, res, next) {
+    try {
+      const userId = req.params.userId;
+      const user = await this._userModel.findById(userId).lean();
+      if (!user) {
+        throw new NotFoundError(`Not found user with id ${userId}`);
+      }
+      console.log(user);
+      res.status(200).json({
+        _id: user._id,
+        login: user.login
+      });
+    } catch (err) {
+      this._logger.error('Error to get user', err);
+      next(err);
+    }
+  }
+
   // /**
   //  * Add viewed article to user
   //  */

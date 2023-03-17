@@ -16,7 +16,7 @@ export default class TagModel {
     schema.statics.getTags = getTags;
     this._model = mongoose.model('Tag', schema);
 
-    async function getTags(name, limit, offset) {
+    async function getTags(filter, limit, offset) {
       let res = await mongoose.connection.models.Article.aggregate([
         {
           '$lookup': {
@@ -37,7 +37,7 @@ export default class TagModel {
                 'cond': {
                   '$regexMatch': {
                     input: '$$item.name', 
-                    regex: name
+                    regex: filter
                   }
                 }
               }
