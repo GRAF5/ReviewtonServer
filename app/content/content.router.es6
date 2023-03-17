@@ -207,6 +207,18 @@ export default class ContentRouter {
       .get(this._authorization.authorize(),
         this._contentService.getArticles.bind(this._contentService));
 
+    router.route('/content/articles/user/:userId')
+      .get(this._authorization.authorize(),
+        this._contentService.getArticlesByUserId.bind(this._contentService));
+
+    router.route('/content/articles/subject/:subjectId')
+      .get(this._authorization.authorize(),
+        this._contentService.getArticlesBySubjectId.bind(this._contentService));
+
+    router.route('/content/articles/tag/:tagId')
+      .get(this._authorization.authorize(),
+        this._contentService.getArticlesByTagId.bind(this._contentService));
+
     router.route('/content/articles/:articleId')
       .put(this._authorization.authorize('update-article'),
         this._contentService.updateArticle.bind(this._contentService));
@@ -225,8 +237,19 @@ export default class ContentRouter {
     // router.route('/content/articles/:articleId/comments/:commentId/answers')
     //   .get(this._contentService.getAnswers.bind(this._contentService));
 
+    router.route('/content/tags/:tagId')
+      .get(this._authorization.authorize(),
+        this._contentService.getTagById.bind(this._contentService));
+
     router.route('/content/tags')
       .get(this._contentService.getTags.bind(this._contentService));
+
+    router.route('/content/subjects/:subjectId')
+      .get(this._authorization.authorize(),
+        this._contentService.getSubjectById.bind(this._contentService));
+
+    router.route('/content/subjects')
+      .get(this._contentService.getSubjects.bind(this._contentService));
 
     // router.route('/content/estimate/articles/:articleId')
     //   .put(this._authorization.authorize(),

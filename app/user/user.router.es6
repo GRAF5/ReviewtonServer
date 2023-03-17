@@ -130,6 +130,8 @@ export default class UserRouter {
     router.route('/user/authenticate')
       .post(this._userService.authenticate.bind(this._userService));
 
+    router.route('/user/:userId')
+      .get(this._userService.getUserById.bind(this._userService));
     // router.route('/user/:id/viewed')
     //   .get(this._authorization.authorize(),
     //     this._userService.getViewed.bind(this._userService))
