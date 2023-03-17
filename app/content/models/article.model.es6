@@ -44,8 +44,9 @@ export default class ArticleModel {
         rules.push({user: {$in: users.map(u => u._id)}});
       }
       if (tags.length) {
-        rules.push({tags: tags.map(t => t._id)});
+        rules.push({tags: {$elemMatch: {$in: tags.map(t => t._id)}}});
       }
+      console.log(rules);
       let filter = rules.length ? {$or: rules} : {};
       return await this.getArticles(filter, {createTime: -1}, limit, offset);
       // return await this.find(filter)

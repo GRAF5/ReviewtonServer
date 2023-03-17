@@ -134,7 +134,6 @@ export default class UserService {
       if (!user) {
         throw new NotFoundError(`Not found user with id ${userId}`);
       }
-      console.log(user);
       res.status(200).json({
         _id: user._id,
         login: user.login
