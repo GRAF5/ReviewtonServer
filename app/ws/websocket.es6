@@ -138,4 +138,15 @@ export default class Websocket {
     }
     nsp.to(channel).emit(event, ...args);
   }
+
+  /**
+   * Disconnect specified socket
+   * @param {String} id socket id 
+   */
+  disconnect(id) {
+    let socket = this._sockets.find(s => s.id === id);
+    if (socket) {
+      socket.disconnect();
+    }
+  }
 }

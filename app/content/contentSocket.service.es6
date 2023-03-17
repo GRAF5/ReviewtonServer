@@ -57,18 +57,22 @@ export default class ContentSocketService {
   disconnect(context, next) {
     try {
       const {socketId, route, data, user} = context;
-      if (this._intervals[socketId]) {
-        for (let id of Object.keys(this._intervals[socketId])) {
-          clearInterval(this._intervals[socketId][id]);
-        }
-        delete this._intervals[socketId];
-      }
-      delete this._contexts[socketId];
+      this._disconnect(socketId);
       next();
     } catch (err) {
       this._logger.error(`Failed to disconnect ${context.socketId}`, err);
       next(err);
     }
+  }
+
+  _disconnect(socketId) {
+    if (this._intervals[socketId]) {
+      for (let id of Object.keys(this._intervals[socketId])) {
+        clearInterval(this._intervals[socketId][id]);
+      }
+      delete this._intervals[socketId];
+    }
+    delete this._contexts[socketId];
   }
 
   articleFeedUnsubscribe(context, next) {
@@ -207,10 +211,10 @@ export default class ContentSocketService {
       }
       this._websocket.emit(this._articleFeedNsp, socketId, `article-update-${articleId}`, article);
     } catch (err) {
-      this._logger.error(`Failed send article ${socketId} ${articleId} ${this._intervals[socketId]}`, err);
-      // clearInterval(this._intervals[socketId][articleId]);
-      // delete this._intervals[socketId][articleId];
-      // delete this._contexts[socketId][articleId];
+      this._logger.error(`Failed send article ${articleId} to ${socketId} ${this._intervals[socketId]}`, err);
+      this._websocket.disconnect(socketId);
+      this._disconnect(socketId);
+      console.log(this._contexts);
     }
   }
 }
