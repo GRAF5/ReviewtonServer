@@ -17,7 +17,7 @@ export default class UserModel {
       salt: {type: String, required: true},
       role: {type: String, enum: ['user', 'moderator', 'admin', 'super-admin'], default: 'user'},
       permissions: {type: [String], default: []},
-      viewed: [{type: Schema.Types.String, ref: 'Article', default: []}],
+      viewed: {type: Object, default: {}},
       reactions: {type: Object, default: {}}
     };
     const schema = new mongoose.Schema(fields, {versionKey: false});

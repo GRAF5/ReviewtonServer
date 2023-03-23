@@ -133,7 +133,7 @@ describe('ContentService', () => {
         {_id: '3', rating: 5, text: 'Test 3', createTime: date, user: user._id, subject: subject3._id}).save();
       let res = await request(server)
         .get('/content/articles')
-        .query({name: 'Test'})
+        .query({filter: 'Test subject'})
         .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
@@ -163,7 +163,7 @@ describe('ContentService', () => {
           createTime: date, user: user._id, subject: subject2._id, tags: [tag2._id]}).save();
       let res = await request(server)
         .get('/content/articles')
-        .query({name: 'Tag1'})
+        .query({filter: 'Tag1'})
         .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
@@ -185,7 +185,7 @@ describe('ContentService', () => {
         {_id: '2', rating: 5, text: 'Test 2', createTime: date, user: user2._id, subject: subject2._id}).save();
       let res = await request(server)
         .get('/content/articles')
-        .query({name: 'login1'})
+        .query({filter: 'login1'})
         .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
