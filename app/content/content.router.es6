@@ -223,6 +223,9 @@ export default class ContentRouter {
       .put(this._authorization.authorize('update-article'),
         this._contentService.updateArticle.bind(this._contentService));
 
+    router.route('/content/filters/:filter')
+      .get(this._contentService.getFilters.bind(this._contentService));
+
     // router.route('/content/articles/:articleId/comments')    
     //   .post(this._authorization.authorize('create-comment'),
     //     this._contentService.createComment.bind(this._contentService))

@@ -37,11 +37,11 @@ export default class ContentService {
    */
   async getArticles(req, res, next) {
     try {
-      let name = req.query.name || '';
+      let filter = req.query.filter || '';
       const {limit, offset} = this._checkPagination(req);
-      const tags = await this._tagModel.find({ name: {$regex: name}}).select('_id');
-      const subjects = await this._subjectModel.find({name: {$regex: name}}).select('_id');
-      const users = await this._userModel.find({ login: {$regex: name} }).select('_id');
+      const tags = await this._tagModel.find({ name: {$regex: new RegExp(filter, 'i')}}).select('_id');
+      const subjects = await this._subjectModel.find({name: {$regex: new RegExp(filter, 'i')}}).select('_id');
+      const users = await this._userModel.find({ login: {$regex: new RegExp(filter, 'i')} }).select('_id');
       let articles = await this._articleModel.getAllOrBySubjectOrUserOrTags(subjects, users, tags, limit, offset);
       for (let article of articles) {
         let reactions = await this._userModel.getAritcleReactions(article._id);
@@ -285,7 +285,13 @@ export default class ContentService {
           }),
         body('rating')
           .optional()
-          .isInt({min: 1, max: 5}).withMessage('Оцінка має бути від 1 до 5')
+          .isInt({min: 1, max: 5}).withMessage('Оцінка має бути від 1 до 5'),
+        body('subject')
+          .optional({nullable: true})
+          .customSanitizer(value => {return value.replace(/^\s+|\s+$/g, '');}),        
+        body('tags')
+          .optional({nullable: true})
+          .customSanitizer(value => {return value.map(el => el.replace(/^\s+|\s+$/g, ''));})
       ];
       await this._validate(req, validations);
     } catch (err) {
@@ -357,8 +363,29 @@ export default class ContentService {
     }
   }
 
-  _checkPagination(req) {
-    let limit = req.query.limit ? +((+req.query.limit).toFixed()) : 25;
+  async getFilters(req, res, next) {
+    try {
+      const filter = req.params.filter;
+      const {limit, offset} = this._checkPagination(req, 10);
+      const users = await this._userModel.find({login: {$regex: new RegExp(filter, 'i')}})
+        .limit(limit)
+        .lean();
+      const subjects = await this._subjectModel.find({name: {$regex: new RegExp(filter, 'i')}})
+        .limit(limit)
+        .lean();
+      const tags = await this._tagModel.find({name: {$regex: new RegExp(filter, 'i')}})
+        .limit(limit)
+        .lean();
+      return res.set('Cache-Control', 'public, max-age=300').status(200).json({filters: []
+        .concat(users.map(u => u.login), subjects.map(s => s.name), tags.map(t => t.name))});     
+    } catch (err) {
+      this._logger.error('Error getting filters', err);
+      next(err);
+    }
+  }
+
+  _checkPagination(req, mLimit) {
+    let limit = req.query.limit ? +((+req.query.limit).toFixed()) : mLimit ? mLimit : 200;
     let offset = req.query.offset ? +((+req.query.offset).toFixed()) : 0;
     if (limit < 1) {
       limit = 1;

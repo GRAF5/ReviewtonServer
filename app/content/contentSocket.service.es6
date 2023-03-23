@@ -92,6 +92,7 @@ export default class ContentSocketService {
     }
   }
 
+  // eslint-disable-next-line complexity
   async articleFeedSubscribe(context, next) {
     try {
       const {socketId, route, data, user} = context;
@@ -101,10 +102,26 @@ export default class ContentSocketService {
         userId: user?._id,
         getComments: data.commentsRender || false
       };
-      this._intervals[socketId][data.article] = process.env.NODE_ENV !== 'test' ? 
-        setInterval(this._articleFeedJob.bind(this), 
-          _.defaultTo(this._config.websocket.intarvalInSeconds, 60) * 1000, socketId, data.article) :
-        [socketId, data.article];
+      if (!this._intervals[socketId][data.article]) {
+        this._intervals[socketId][data.article] = process.env.NODE_ENV !== 'test' ? 
+          setInterval(this._articleFeedJob.bind(this), 
+            _.defaultTo(this._config.websocket.intarvalInSeconds, 60) * 1000, socketId, data.article) :
+          [socketId, data.article];
+      }
+        
+      if (user?._id) {
+        user.viewed = _.defaultTo(user.viewed, {});
+        let views = Object.keys(user.viewed).slice(-100);
+        user.viewed = Object.fromEntries(
+          Object.entries(user.viewed).filter(([article]) => views.some(id => id === article)));
+        if (!user.viewed[data.article]) {
+          user.viewed[data.article] = {};
+          await this._userModel.updateUser(user._id, {viewed: user.viewed});
+          let article = await this._articleModel.findById(data.article);
+          article.views = article.views + 1;
+          await article.save();
+        }
+      }
       await this._articleFeedJob(socketId, data.article);
       next();
     } catch (err) {
@@ -214,7 +231,6 @@ export default class ContentSocketService {
       this._logger.error(`Failed send article ${articleId} to ${socketId} ${this._intervals[socketId]}`, err);
       this._websocket.disconnect(socketId);
       this._disconnect(socketId);
-      console.log(this._contexts);
     }
   }
 }

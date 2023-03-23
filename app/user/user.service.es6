@@ -58,8 +58,9 @@ export default class UserService {
         body('login')
           .notEmpty().withMessage('Необхідно вказати ім\'я користувача')
           .isLength({min: 4, max: 20}).withMessage('Має містити принаймні 4 символи')
+          .matches(/^[a-zA-Z0-9+_@.-]*$/).withMessage('Дозволено тільки латинські букви та цифри')
           .custom((value) => {
-            let query = this._userModel.findOne({ login: value});
+            let query = this._userModel.findOne({ login: {$regex: new RegExp(`^${value}$`, 'i')}});
             return query.exec().then(user => {
               if (user) {
                 return Promise.reject('Вказане ім\'я користувача вже зайнято');

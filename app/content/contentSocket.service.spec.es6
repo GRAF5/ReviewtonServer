@@ -79,9 +79,9 @@ describe('ContentSocketService', () => {
   after(async () => {
     await app._db.clear();
     await app._db.delete();
-    await app.stop();
     client.close();
     sandbox.restore();
+    await app.stop();
   });
 
   it('should subscribe with user', async () => {
@@ -94,7 +94,7 @@ describe('ContentSocketService', () => {
       user: {_id: 'u1', login: 'login'},
       subject: {_id: 's1', name: 'Test subject'},
       tags: [{_id: 't1', name: 'Tag1'}],
-      views: 0,
+      views: 1,
       likes: 0,
       dislikes: 0,
       commentsCount: 0
