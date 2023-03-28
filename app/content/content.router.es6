@@ -203,7 +203,7 @@ export default class ContentRouter {
 
     router.route('/content/articles')
       .post(this._authorization.authorize('create-article'),
-        this._contentService.createArticle.bind(this._contentService))
+        this._contentService.upsertArticle.bind(this._contentService))
       .get(this._authorization.authorize(),
         this._contentService.getArticles.bind(this._contentService));
 
@@ -220,8 +220,10 @@ export default class ContentRouter {
         this._contentService.getArticlesByTagId.bind(this._contentService));
 
     router.route('/content/articles/:articleId')
+      .get(this._authorization.authorize(),
+        this._contentService.getArticleById.bind(this._contentService))
       .put(this._authorization.authorize('update-article'),
-        this._contentService.updateArticle.bind(this._contentService));
+        this._contentService.upsertArticle.bind(this._contentService));
 
     router.route('/content/filters/:filter')
       .get(this._contentService.getFilters.bind(this._contentService));

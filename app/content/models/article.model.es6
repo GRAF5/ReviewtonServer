@@ -16,7 +16,8 @@ export default class ArticleModel {
       user: {type: Schema.Types.String, ref: 'User', required: true},
       subject: {type: Schema.Types.String, ref: 'Subject', required: true},
       tags: [{type: Schema.Types.String, ref: 'Tag', default: []}],
-      views: {type: Number, default: 0}
+      views: {type: Number, default: 0},
+      images: {}
       // likes: {type: Number, default: 0},
       // dislikes: {type: Number, default: 0}
     };
@@ -35,7 +36,7 @@ export default class ArticleModel {
      * @param {Number} offset pagination offset
      * @returns 
      */
-    async function getAllOrBySubjectOrUserOrTags(subjects, users, tags, limit, offset) {
+    async function getAllOrBySubjectOrUserOrTags(subjects, users, tags, empty, limit, offset) {
       let rules = [];
       if (subjects.length) {
         rules.push({subject: {$in: subjects.map(s => s._id)}});
@@ -47,6 +48,9 @@ export default class ArticleModel {
         rules.push({tags: {$elemMatch: {$in: tags.map(t => t._id)}}});
       }
       let filter = rules.length ? {$or: rules} : {};
+      if (!empty) {
+        filter = Object.assign({}, {text: {$exists : true, $ne : ''}}, filter);
+      }
       return await this.getArticles(filter, {createTime: -1}, limit, offset);
       // return await this.find(filter)
       //   .sort('-createTime')
