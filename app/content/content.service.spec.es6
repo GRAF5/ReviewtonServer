@@ -7,6 +7,12 @@ import log4js from 'log4js';
 import mongoose from 'mongoose';
 import should from 'should';
 import jwt from 'jsonwebtoken';
+import {mockClient} from 'aws-sdk-client-mock';
+import { PutObjectCommand, GetObjectCommand, S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import {sdkStreamMixin} from '@aws-sdk/util-stream-node';
+import {Readable} from 'stream';
+import fs from 'fs';
+import crypto from 'crypto';
 
 /**
  * @test ContentService
@@ -17,7 +23,12 @@ describe('ContentService', () => {
     db: {
       url: 'mongodb://127.0.0.1:27017/reviewton-tests'
     },
-    secret: 'test'
+    aws: {
+      bucket: 'bucket'
+    },
+    secret: 'test',
+    maxArticleImagesCount: 3,
+    imageCachingTimeInMinutes: 0.5
   };
   const userParams = {
     _id: '1',
@@ -36,6 +47,7 @@ describe('ContentService', () => {
   let server;
   let sandbox;
   let contentService;
+  let s3Mock;
 
   before(async () => {
     sandbox = sinon.createSandbox();
@@ -45,11 +57,17 @@ describe('ContentService', () => {
     });
     await app.start(conf);
     server = app._server;
-    sandbox.useFakeTimers({toFake: ['Date'], now: Date.parse('2022-09-03T16:38:05.447Z')});
     contentService = app._container.resolve('contentService');
   });
 
+  beforeEach(() => {    
+    s3Mock = mockClient(S3Client);
+    sandbox.useFakeTimers({toFake: ['Date'], now: Date.parse('2022-09-03T16:38:05.447Z')});
+  });
+
   afterEach(async () => {
+    s3Mock.restore();
+    sandbox.restore();
     await app._db.clear();
   });
 
@@ -70,6 +88,23 @@ describe('ContentService', () => {
         .get('/content/articles')
         .expect(200);
       res.text.should.be.eql(JSON.stringify({articles: []}));
+    });
+    
+    it('should not get empty articles', async () => {
+      let user = await new mongoose.models['User'](userParams).save();
+      let subject = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject'}).save();
+      let date = Date.now();
+      await new mongoose.models['Article'](
+        {_id: '1', rating: 5, text: '', createTime: date, user: user._id, subject: subject._id}).save();
+      await new mongoose.models['Article'](
+        {_id: '2', rating: 5, text: 'Test 2', createTime: date, user: user._id, subject: subject._id}).save();
+      let res = await request(server)
+        .get('/content/articles')
+        .expect(200);
+      res.text.should.be.eql(JSON.stringify({articles: [
+        {_id: '2', rating: 5, text: 'Test 2', 
+          createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
+          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0}]}));
     });
 
     it('should get all articles if name not defined', async () => {
@@ -195,6 +230,112 @@ describe('ContentService', () => {
   });
 
   /**
+   * @test ContentService#getArticlesByUserId
+   */
+  describe('getArticlesByUserId', () => {
+
+    it('should get empty array if there no articles', async () => {
+      let res = await request(server)
+        .get('/content/articles/user/1')
+        .expect(200);
+      res.text.should.be.eql(JSON.stringify({articles: []}));
+    });
+
+    it('should get all user articles', async () => {
+      let user = await new mongoose.models['User'](userParams).save();
+      let subject = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject'}).save();
+      let date = Date.now();
+      await new mongoose.models['Article'](
+        {_id: '1', rating: 5, text: '', createTime: date, user: user._id, subject: subject._id}).save();
+      await new mongoose.models['Article'](
+        {_id: '2', rating: 5, text: 'Test 2', createTime: date, user: user._id, subject: subject._id}).save();
+      await new mongoose.models['Article'](
+        {_id: '3', rating: 5, text: 'Test 3', createTime: date, user: '2', subject: subject._id}).save();
+      let res = await request(server)
+        .get('/content/articles/user/1')
+        .expect(200);
+      res.text.should.be.eql(JSON.stringify({articles: [
+        {_id: '1', rating: 5, text: '', 
+          createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
+          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0},
+        {_id: '2', rating: 5, text: 'Test 2', 
+          createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
+          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0}]}));
+    });
+  });
+
+  /**
+   * @test ContentService#getArticlesBySubjectId
+   */
+  describe('getArticlesBySubjectId', () => {
+
+    it('should get empty array if there no articles', async () => {
+      let res = await request(server)
+        .get('/content/articles/subject/1')
+        .expect(200);
+      res.text.should.be.eql(JSON.stringify({articles: []}));
+    });
+
+    it('should get all subject articles', async () => {
+      let user = await new mongoose.models['User'](userParams).save();
+      let user2 = await new mongoose.models['User']({...userParams, _id: '2'}).save();
+      let subject = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject'}).save();
+      let date = Date.now();
+      await new mongoose.models['Article'](
+        {_id: '1', rating: 5, text: '', createTime: date, user: user._id, subject: subject._id}).save();
+      await new mongoose.models['Article'](
+        {_id: '2', rating: 5, text: 'Test 2', createTime: date, user: user._id, subject: 2}).save();
+      await new mongoose.models['Article'](
+        {_id: '3', rating: 5, text: 'Test 3', createTime: date, user: user2._id, subject: subject._id}).save();
+      let res = await request(server)
+        .get('/content/articles/subject/1')
+        .expect(200);
+      res.text.should.be.eql(JSON.stringify({articles: [
+        {_id: '1', rating: 5, text: '', 
+          createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
+          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0},
+        {_id: '3', rating: 5, text: 'Test 3', 
+          createTime: '2022-09-03T16:38:05.447Z', user: {_id: user2._id, login: user.login}, 
+          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0}]}));
+    });
+  });
+
+  /**
+   * @test ContentService#getArticlesByTagId
+   */
+  describe('getArticlesByTagId', () => {
+
+    it('should get empty array if there no articles', async () => {
+      let res = await request(server)
+        .get('/content/articles/tag/1')
+        .expect(200);
+      res.text.should.be.eql(JSON.stringify({articles: []}));
+    });
+
+    it('should get all subject articles', async () => {
+      let user = await new mongoose.models['User'](userParams).save();
+      let user2 = await new mongoose.models['User']({...userParams, _id: '2'}).save();
+      let subject = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject'}).save();
+      let tag = await new mongoose.models['Tag']({_id: '1', name: 'Tag1'}).save();
+      let tag2 = await new mongoose.models['Tag']({_id: '2', name: 'Tag2'}).save();
+      let date = Date.now();
+      await new mongoose.models['Article'](
+        {_id: '1', rating: 5, text: '', tags: ['1'], createTime: date, user: user._id, subject: subject._id}).save();
+      await new mongoose.models['Article'](
+        {_id: '2', rating: 5, text: 'Test 2', tags: ['2'], createTime: date, user: user2._id, subject: 2}).save();
+      await new mongoose.models['Article'](
+        {_id: '3', rating: 5, text: 'Test 3', tags: [], createTime: date, user: user._id, subject: subject._id}).save();
+      let res = await request(server)
+        .get('/content/articles/tag/1')
+        .expect(200);
+      res.text.should.be.eql(JSON.stringify({articles: [
+        {_id: '1', rating: 5, text: '', 
+          createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
+          subject: subject, tags:[{_id: '1', name: 'Tag1'}], views: 0, commentsCount: 0, likes: 0, dislikes: 0}]}));
+    });
+  });
+
+  /**
    * @test ContentService#getTags
    */
   describe('getTags', () =>{
@@ -205,7 +346,7 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({tags: []}));
     });
     
-    it('should get all tags if name not defined', async () => {
+    it('should get all tags if filter not defined', async () => {
       let tag1 = await new mongoose.models['Tag']({ _id: '1', name: 'Tag1'}).save();
       let tag2 = await new mongoose.models['Tag']({ _id: '2', name: 'Tag2'}).save();
       let date = Date.now() - 2000;
@@ -257,7 +398,7 @@ describe('ContentService', () => {
         { _id: '1', name: 'Tag1', articleCount: 1}]}));
     });
     
-    it('should get tags by name', async () => {
+    it('should get tags by filter', async () => {
       let tag1 = await new mongoose.models['Tag']({ _id: '1', name: 'Tag1'}).save();
       let tag2 = await new mongoose.models['Tag']({ _id: '2', name: 'Tag2'}).save();
       let date = Date.now() - 2000;
@@ -349,6 +490,41 @@ describe('ContentService', () => {
         .expect(400);
     });
 
+    it('should return validation error if user already have article on selected subject', async () => {
+      await mongoose.models['Subject'].create({_id: '1', name: articleParam.subject});
+      await mongoose.models['Article'].create({rating: 1, 
+        subject:'1', _id: '1', user: user._id, createTime: Date.now()});
+      await request(server)
+        .post('/content/articles')
+        .send(articleParam)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+    
+    it('should return validation error if text is not valid html', async () => {
+      await request(server)
+        .post('/content/articles')
+        .send({...articleParam, text: '<img<>'})
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should return validation error if article have many images', async () => {
+      let img = fs.readFileSync('app/content/test/image.png');
+      let img2 = fs.readFileSync('app/content/test/image2.png');
+      let img3 = fs.readFileSync('app/content/test/image3.png');
+      let img4 = fs.readFileSync('app/content/test/image4.png');
+      await request(server)
+        .post('/content/articles')
+        .send({...articleParam, 
+          text: `<img src="data:image/png;base64,${img.toString('base64')}">` +
+          `<img src="data:image/png;base64,${img2.toString('base64')}">` +
+          `<img src="data:image/png;base64,${img3.toString('base64')}">` +
+          `<img src="data:image/png;base64,${img4.toString('base64')}">`})
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
     it('should create article', async () => {
       let res = await request(server)
         .post('/content/articles')
@@ -361,6 +537,7 @@ describe('ContentService', () => {
         createTime: article.createTime,
         rating: articleParam.rating,
         subject: article.subject,
+        images: {},
         tags: [],
         views: 0,
         user: user._id
@@ -369,6 +546,40 @@ describe('ContentService', () => {
       let subject = await mongoose.models['Subject'].findById(article.subject).lean();
       subject.name.should.be.eql(articleParam.subject);
       subject.rating.should.be.eql(articleParam.rating);
+    });
+
+    it('should create article with images', async () => {
+      sandbox.stub(contentService, 'getId').returns('id');
+      s3Mock.on(PutObjectCommand).resolves({UploadId: '1'}); 
+      let image = fs.readFileSync('app/content/test/image.png');
+      const hashSum = crypto.createHash('sha256');
+      hashSum.update(image);
+      
+      const hex = hashSum.digest('hex');
+      let res = await request(server)
+        .post('/content/articles')
+        .send({...articleParam, 
+          text: `<img src="data:image/png;base64,${image.toString('base64')}" alt="">` +
+          `<img src="data:image/png;base64,${image.toString('base64')}" alt="">`})
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let article = await mongoose.models['Article'].findById(res.body._id).lean();
+      article.should.be.eql({
+        _id: res.body._id,
+        createTime: article.createTime,
+        rating: articleParam.rating,
+        subject: article.subject,
+        images: {[hex]: `${user._id}/articles/id/${hex}.png`},
+        tags: [],
+        views: 0,
+        user: user._id,
+        text: `<img src=${hex}><img src=${hex}>`
+      });
+      Date(article.createTime).should.be.eql(Date(Date.now()));
+      let subject = await mongoose.models['Subject'].findById(article.subject).lean();
+      subject.name.should.be.eql(articleParam.subject);
+      subject.rating.should.be.eql(articleParam.rating);
+      should(s3Mock.calls().length).be.eql(1);
     });
 
     it('should create article with tags', async () => {
@@ -396,7 +607,7 @@ describe('ContentService', () => {
       let art = await new mongoose.models['Article'](
         {
           _id: '1', rating: 4, text: 'Test 1', 
-          createTime: Date.now(), user: user._id, subject: sub._id, tags: [tag._id]}).save();
+          createTime: Date.now(), user: '2', subject: sub._id, tags: [tag._id]}).save();
       let res = await request(server)
         .post('/content/articles')
         .send(articleParam)
@@ -451,7 +662,7 @@ describe('ContentService', () => {
       await mongoose.models['User'].create(user);
       await mongoose.models['Subject'].create(subject);
       await mongoose.models['Article'].create(article);
-      await mongoose.models['Article'].create({...article, _id: 12, rating: 2});
+      await mongoose.models['Article'].create({...article, _id: '12', user: '2', rating: 2});
       token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
     });
 
@@ -461,24 +672,28 @@ describe('ContentService', () => {
       await request(server)
         .put('/content/articles/1')
         .send({
+          subject: subject.name,
           rating: 3
         })
         .set('Authorization', `Bearer ${wrongToken}`)
         .expect(401);
     });
 
-    it('should return article validation error when defined wrong id', async () => {
+    it('should return article not found error when defined wrong id', async () => {
       await request(server)
         .put('/content/articles/2')
-        .send({})
+        .send({
+          subject: subject.name,
+          rating: 3})
         .set('Authorization', `Bearer ${token}`)
-        .expect(400);
+        .expect(404);
     });
 
     it('should return rating validation error when rating over max', async () => {
       await request(server)
         .put('/content/articles/1')
         .send({
+          subject: subject.name,
           rating: 6
         })
         .set('Authorization', `Bearer ${token}`)
@@ -489,16 +704,125 @@ describe('ContentService', () => {
       await request(server)
         .put('/content/articles/1')
         .send({
+          subject: subject.name,
           rating: 0
         })
         .set('Authorization', `Bearer ${token}`)
         .expect(400);
     });
 
+    it('should return validation error if user already have article on selected subject', async () => {
+      await mongoose.models['Article'].create({rating: 1, 
+        subject: subject._id, _id: '2', user: user._id, createTime: Date.now()});
+      await request(server)
+        .put('/content/articles/1')
+        .send({...article, subject: subject.name})
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should return validation error if text is not valid html', async () => {
+      await request(server)
+        .put('/content/articles/1')
+        .send({...article, subject: subject.name, text: '<img<>'})
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should return validation error if article have many images', async () => {
+      let img = fs.readFileSync('app/content/test/image.png');
+      let img2 = fs.readFileSync('app/content/test/image2.png');
+      let img3 = fs.readFileSync('app/content/test/image3.png');
+      let img4 = fs.readFileSync('app/content/test/image4.png');
+      await request(server)
+        .put('/content/articles/1')
+        .send({...article, subject: subject.name, 
+          text: `<img src="data:image/png;base64,${img.toString('base64')}">` +
+          `<img src="data:image/png;base64,${img2.toString('base64')}">` +
+          `<img src="data:image/png;base64,${img3.toString('base64')}">` +
+          `<img src="data:image/png;base64,${img4.toString('base64')}">`})
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should update article old subject', async () => {
+      await mongoose.models['Subject'].create({...subject, name: 'Old', _id: '2'});
+      await mongoose.models['Article'].create({...article, subject: '2', _id: 2});
+      sandbox.stub(contentService, 'getId').returns('id');
+      await request(server)
+        .put('/content/articles/2')
+        .send({
+          subject: 'Old new',
+          rating: 5,
+          text: '<p>text</p>'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let art = await mongoose.models['Article'].findById('2').lean();
+      let oldSub = await mongoose.models['Subject'].findById('2').lean();
+      art.subject.should.be.eql('id');
+      should(oldSub).null();
+    });
+
+    it('should remove article old subject', async () => {
+      sandbox.stub(contentService, 'getId').returns('id');
+      await request(server)
+        .put('/content/articles/1')
+        .send({
+          subject: subject.name + ' new',
+          rating: 5,
+          text: 'text'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let art = await mongoose.models['Article'].findById(article._id).lean();
+      let oldSub = await mongoose.models['Subject'].findById(subject._id).lean();
+      art.subject.should.be.eql('id');
+      should(oldSub.rating).be.eql(2);
+    });
+
+    it('should remove old article images', async () => {
+      let newImage = fs.readFileSync('app/content/test/image.png');
+      const newHashSum = crypto.createHash('sha256');
+      newHashSum.update(newImage);
+      const newHex = newHashSum.digest('hex');
+      let oldImage = fs.readFileSync('app/content/test/oldImage.png');
+      const oldHashSum = crypto.createHash('sha256');
+      oldHashSum.update(oldImage);
+      const oldHex = oldHashSum.digest('hex');
+      s3Mock.on(PutObjectCommand).resolves({UploadId: '1'}); 
+      await mongoose.models['Subject'].create({...subject, name: 'Old', _id: '2'});
+      await mongoose.models['Article'].create({
+        ...article, 
+        subject: '2', 
+        _id: 2,
+        images: {[oldHex]: `${user._id}/articles/2/${oldHex}.png`}
+      });
+      await request(server)
+        .put('/content/articles/2')
+        .send({
+          subject: subject.name + ' new',
+          rating: 5,
+          text: `<img src="data:image/png;base64,${newImage.toString('base64')}">`
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);      
+      should(s3Mock.commandCalls(PutObjectCommand, {
+        Bucket: conf.aws.bucket,
+        Key: `${user._id}/articles/2/${newHex}.png`
+      }).length).eql(1);
+      should(s3Mock.commandCalls(DeleteObjectCommand, {
+        Bucket: conf.aws.bucket,
+        Key: `${user._id}/articles/2/${oldHex}.png`
+      }).length).eql(1);
+    });
+
     it('should update article text', async () => {
       await request(server)
         .put('/content/articles/1')
         .send({
+          subject: subject.name,
+          rating: 3,
           text: 'Another text'
         })
         .set('Authorization', `Bearer ${token}`)
@@ -511,6 +835,7 @@ describe('ContentService', () => {
       await request(server)
         .put('/content/articles/1')
         .send({
+          subject: subject.name,
           rating: 5
         })
         .set('Authorization', `Bearer ${token}`)
@@ -522,276 +847,251 @@ describe('ContentService', () => {
     });
   });
 
-  // /**
-  //  * @test ContentService#createComment
-  //  */
-  // describe('createComment', () => {
+  /**
+   * @test ContentService#getArticleById
+   */
+  describe('getArticleById', () => {
 
-  //   const user = {
-  //     _id: '1',
-  //     email: 'test@test.com',
-  //     login: 'login',
-  //     permissions: [
-  //       'create-article',
-  //       'update-article',
-  //       'create-comment',
-  //       'update-comment'
-  //     ],
-  //     salt: 'e2996430759b75a241dcdc846605c227',
-  // eslint-disable-next-line max-len
-  //     hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
-  //     //password: 'QwerTY123456'
-  //   };
-  //   const subject = {
-  //     _id: '1',
-  //     name: 'Subject'
-  //   };  
-  //   const article = {
-  //     _id: '1',
-  //     rating: 5,
-  //     text: 'Article',
-  //     user: user._id,
-  //     subject: subject._id,
-  //     createTime: Date.now()
-  //   };
-  //   let commentParam;
-  //   let token;
+    it('should return not found if no article', async () => {
+      let res = await request(server)
+        .get('/content/articles/1')
+        .expect(404);
+    });
 
-  //   beforeEach(async () => {
-  //     await mongoose.models['User'].create(user);
-  //     await mongoose.models['Subject'].create(subject);
-  //     await mongoose.models['Article'].create(article);
-  //     commentParam = {
-  //       text: 'Comment text'
-  //     };
-  //     token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
-  //   });
+    it('should get article by id', async () => {
+      let user = await new mongoose.models['User'](userParams).save();
+      let subject = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject'}).save();
+      let date = Date.now();
+      await new mongoose.models['Article'](
+        {_id: '1', rating: 5, text: '', createTime: date, user: user._id, subject: subject._id}).save();
+      await new mongoose.models['Article'](
+        {_id: '2', rating: 5, text: 'Test 2', createTime: date, user: user._id, subject: subject._id}).save();
+      await new mongoose.models['Article'](
+        {_id: '3', rating: 5, text: 'Test 3', createTime: date, user: user._id, subject: subject._id}).save();
+      let res = await request(server)
+        .get('/content/articles/1')
+        .expect(200);
+      res.text.should.be.eql(JSON.stringify(
+        {_id: '1', rating: 5, text: '', 
+          createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
+          subject: subject, tags: [], views: 0, commentsCount: 0, likes: 0, dislikes: 0}));
+    });
+  });
+
+  /**
+   * @test ContentService#getTagById
+   */
+  describe('getTagById', () => {
+
+    it('should return not found if no tag', async () => {
+      let res = await request(server)
+        .get('/content/tags/1')
+        .expect(404);
+    });
+
+    it('should get tag by id', async () => {
+      let tag = await new mongoose.models['Tag']({_id: '1', name: 'Tag1'}).save();
+      let tag2 = await new mongoose.models['Tag']({_id: '2', name: 'Tag2'}).save();
+      let res = await request(server)
+        .get('/content/tags/1')
+        .expect(200);
+      res.text.should.be.eql(JSON.stringify(
+        {_id: '1', name: 'Tag1'}));
+    });
+  });
+
+  /**
+   * @test ContentService#getSubjectById
+   */
+  describe('getSubjectById', () => {
+
+    it('should return not found if no subject', async () => {
+      let res = await request(server)
+        .get('/content/subjects/1')
+        .expect(404);
+    });
+
+    it('should get tag by id', async () => {
+      let subject = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject'}).save();
+      let subject2 = await new mongoose.models['Subject']({ _id: '2', name: 'Test subject 2'}).save();
+      let res = await request(server)
+        .get('/content/subjects/1')
+        .expect(200);
+      res.text.should.be.eql(JSON.stringify(
+        {_id: '1', name: 'Test subject'}));
+    });
+  });
+  
+  /**
+   * @test ContentService#getSubjects
+   */
+  describe('getSubjects', () =>{
+    it('should get empty array if there no subjects', async () => {
+      let res = await request(server)
+        .get('/content/subjects')
+        .expect(200);
+      res.text.should.be.eql(JSON.stringify({subjects: []}));
+    });
     
-  //   it('should return text validation error when text is undefined', async () => {
-  //     delete commentParam.text;
-  //     await request(server)
-  //       .post(`/content/articles/${article._id}/comments`)
-  //       .send(commentParam)
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(400);
-  //   });
+    it('should get all subjects if filter not defined', async () => {
+      let subject = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject'}).save();
+      let subject2 = await new mongoose.models['Subject']({ _id: '2', name: 'Test subject 2'}).save();
+      let date = Date.now() - 2000;
+      let user = await new mongoose.models['User'](userParams).save();
+      let article1 = await new mongoose.models['Article'](
+        {
+          _id: '1', rating: 5, text: 'Test 1', 
+          createTime: date, user: user._id, subject: subject._id}).save();
+      let article2 = await new mongoose.models['Article'](
+        {
+          _id: '2', rating: 5, text: 'Test 2', 
+          createTime: date, user: user._id, subject: subject2._id}).save();
+      let article3 = await new mongoose.models['Article'](
+        {
+          _id: '3', rating: 5, text: 'Test 2', 
+          createTime: date, user: user._id, subject: subject2._id}).save();
+      let res = await request(server)
+        .get('/content/subjects')
+        .expect(200);
+      res.text.should.be.eql(JSON.stringify({subjects: [
+        {_id: '2', name: 'Test subject 2', articleCount: 2},
+        {_id: '1', name: 'Test subject', articleCount: 1}
+      ]}));
+    });
     
-  //   it('should return text validation error when text is empty', async () => {
-  //     commentParam.text = '   \n    ';
-  //     await request(server)
-  //       .post(`/content/articles/${article._id}/comments`)
-  //       .send(commentParam)
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(400);
-  //   });
-    
-  //   it('should return article validation error when defined wrong article', async () => {
-  //     commentParam.article = 'wrongID';
-  //     await request(server)
-  //       .post('/content/articles/wrongID/comments')
-  //       .send(commentParam)
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(400);
-  //   });
-    
-  //   it('should create comment', async () => {
-  //     let res = await request(server)
-  //       .post(`/content/articles/${article._id}/comments`)
-  //       .send(commentParam)
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(200);
-  //     let comment = await mongoose.models['Comment'].findById(res.body._id).lean();
-  //     comment.text.should.be.eql(commentParam.text);
-  //     comment.user.should.be.eql(user._id);
-  //     comment.article.should.be.eql(article._id);
-  //   });
-  // });
+    it('should get subjects by filter', async () => {
+      let date = Date.now() - 2000;
+      let user = await new mongoose.models['User'](userParams).save();
+      let subject = await new mongoose.models['Subject']({ _id: '1', name: 'Test subject 1'}).save();
+      let subject1 = await new mongoose.models['Subject']({ _id: '2', name: 'Test subject 2'}).save();
+      let article1 = await new mongoose.models['Article'](
+        {
+          _id: '1', rating: 5, text: 'Test 1', 
+          createTime: date, user: user._id, subject: subject._id}).save();
+      let article2 = await new mongoose.models['Article'](
+        {
+          _id: '2', rating: 5, text: 'Test 2', 
+          createTime: date, user: user._id, subject: subject1._id}).save();
+      let res = await request(server)
+        .get('/content/subjects')
+        .query({filter: '1'})
+        .expect(200);
+      res.text.should.be.eql(JSON.stringify({subjects: [
+        {_id: '1', name: 'Test subject 1', articleCount: 1}
+      ]}));
+    });
+  });
 
-  // /**
-  //  * @test ContentService#updateComment
-  //  */
-  // describe('updateComment', () => {
-    
-  //   let token;
-  //   const user = {
-  //     _id: '1',
-  //     email: 'test@test.com',
-  //     login: 'login',
-  //     permissions: [
-  //       'create-article',
-  //       'update-article',
-  //       'create-comment',
-  //       'update-comment'
-  //     ],
-  //     salt: 'e2996430759b75a241dcdc846605c227',
-  // eslint-disable-next-line max-len
-  //     hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
-  //     //password: 'QwerTY123456'
-  //   };
-  //   const subject = {
-  //     _id: '1',
-  //     rating: 3.5,
-  //     name: 'Subject'
-  //   };
-  //   const article = {
-  //     _id: '1',
-  //     user: user._id,
-  //     subject: subject._id,
-  //     rating: 3,
-  //     text: 'Text',
-  //     createTime: Date.now()
-  //   };
-  //   const comment = {
-  //     _id: '1',
-  //     user: user._id,
-  //     text: 'Text',
-  //     article: article._id,
-  //     createTime: Date.now()
-  //   };
+  /**
+   * @test ContentService#getFilters
+   */
+  describe('getFilters', () => {
 
-  //   beforeEach(async () => {
-  //     await mongoose.models['User'].create(user);
-  //     let sub = await mongoose.models['Subject'].create(subject);
-  //     await mongoose.models['Article'].create(article);
-  //     sub.articles = [article.id, '2'];
-  //     await sub.save();
-  //     await mongoose.models['Comment'].create(comment);
-  //     token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
-  //   });
+    it('should return unique and case insensitive filters', async () => {
+      let subject = await new mongoose.models['Subject']({ _id: '1', name: 'Filter'}).save();
+      let subject3 = await new mongoose.models['Subject']({ _id: '3', name: 'fil'}).save();
+      let subject2 = await new mongoose.models['Subject']({ _id: '2', name: 'Wrong'}).save();
+      let user = await new mongoose.models['User']({...userParams, login: 'fil'}).save();
+      let user1 = await new mongoose.models['User']({...userParams, _id: '2', login: 'wrong'}).save();
+      let tag = await new mongoose.models['Tag']({ _id: '1', name: 'fILlter'}).save();
+      let tag2 = await new mongoose.models['Tag']({ _id: '2', name: 'wrong'}).save();
+      let res = await request(server)
+        .get('/content/filters/fil')
+        .expect(200);
+      should(res.body).be.eql({filters: [
+        'fil', 'Filter', 'fILlter'
+      ]});
+    });
+  });
 
-  //   it('should return UnauthorizedError if auth wrong user', async () => {
-  //     let wrongToken = jwt.sign({sub: '2'}, conf.secret, {expiresIn: '7d'});
-  //     await mongoose.models['User'].create({...user, _id: '2'});
-  //     await request(server)
-  //       .put(`/content/articles/${article._id}/comments/${comment._id}`)
-  //       .send({
-  //         text: 'Text'
-  //       })
-  //       .set('Authorization', `Bearer ${wrongToken}`)
-  //       .expect(401);
-  //   });
+  /**
+   * @test ContentService#_articleSetData
+   */
+  describe('_articleSetData', () => {
 
-  //   it('should return comment validation error when defined wrong id', async () => {
-  //     await request(server)
-  //       .put(`/content/articles/${article._id}/comments/2`)
-  //       .send({
-  //         text: 'Text'
-  //       })
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(400);
-  //   });
+    it('should set article data', async () => {
+      let user = await new mongoose.models['User']({...userParams, reactions: {'1': true}}).save();
+      let data = {
+        _id: '1'
+      };
+      let article = await contentService._articleSetData(data, {locals:{user: {_id: '1'}}});
+      should(article).be.eql({
+        _id: '1',
+        likes: 1,
+        dislikes: 0,
+        userReaction: true
+      });
+    });
 
-  //   it('should return text validation error when text not defined', async () => {
-  //     await request(server)
-  //       .put(`/content/articles/${article._id}/comments/${comment._id}`)
-  //       .send({})
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(400);
-  //   });
+    it('should get article image from s3', async () => {
+      let image = fs.readFileSync('app/content/test/image.png');
+      const stream = new Readable();
+      stream.push(image);
+      stream.push(null);
+      const sdkStream = sdkStreamMixin(stream);
+      s3Mock.on(GetObjectCommand).resolves({Body: sdkStream}); 
+      let data = {
+        _id: '1',
+        images: {'hash': 's3key.png'},
+        text: '<img src=hash>'
+      };
+      let article = await contentService._articleSetData(data, {});
+      should(article).be.eql({
+        _id: '1',
+        likes: 0,
+        dislikes: 0,
+        text: `<img src="data:image/png;base64,${image.toString('base64')}" alt="">`
+      });
+      should(s3Mock.calls().length).be.eql(1);
+      should(contentService._images).be.eql({
+        'hash': {
+          base64: image.toString('base64'),
+          time: Date.now()
+        }
+      });
+    });
 
-  //   it('should return text validation error when text is empty', async () => {
-  //     await request(server)
-  //       .put(`/content/articles/${article._id}/comments/${comment._id}`)
-  //       .send({
-  //         text: '   '
-  //       })
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(400);
-  //   });
-
-  //   it('should update comment', async () => {
-  //     await request(server)
-  //       .put(`/content/articles/${article._id}/comments/${comment._id}`)
-  //       .send({
-  //         text: 'Another text'
-  //       })
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(200);
-  //     let com = await mongoose.models['Comment'].findById(comment._id).lean();
-  //     com.text.should.be.eql('Another text');
-  //   });
-  // });
-
-  // /**
-  //  * @test ContentService#getComments
-  //  */
-  // describe('getComments', () => {
-
-  //   const user = {
-  //     _id: '1',
-  //     email: 'test@test.com',
-  //     login: 'login',
-  //     permissions: [
-  //       'create-article',
-  //       'update-article',
-  //       'create-comment',
-  //       'update-comment'
-  //     ],
-  //     salt: 'e2996430759b75a241dcdc846605c227',
-  // eslint-disable-next-line max-len
-  //     hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
-  //     //password: 'QwerTY123456'
-  //   };
-  //   const subject = {
-  //     _id: '1',
-  //     name: 'Subject'
-  //   };  
-  //   let article = {
-  //     _id: '1',
-  //     rating: 5,
-  //     text: 'Article',
-  //     user: user._id,
-  //     subject: subject._id,
-  //     createTime: Date.now(),
-  //     comments: []
-  //   };
-  //   let params;
-
-  //   beforeEach(async () => {
-  //     await mongoose.models['User'].create(user);
-  //     await mongoose.models['Subject'].create(subject);
-  //   });
-
-  //   it('should return article validation error when defined wrong article', async () => {
-  //     await mongoose.models['Article'].create(article);
-  //     await request(server)
-  //       .get('/content/articles/wrongID/comments')
-  //       .expect(400);
-  //   });
-
-  //   it('should get empty array if no comments', async () => {
-  //     await mongoose.models['Article'].create(article);
-  //     let res = await request(server)
-  //       .get(`/content/articles/${article._id}/comments`)
-  //       .expect(200);
-  //     res.body.should.be.eql({comments: []});
-  //   });
-
-  //   it('should get article comments', async () => {
-  //     const comment = {
-  //       _id: '1',
-  //       text: 'Comment Text',
-  //       user: user._id,
-  //       article: article._id,
-  //       createTime: Date.now()
-  //     };
-  //     await mongoose.models['Article'].create(article);
-  //     await mongoose.models['Comment'].create(comment);
-  //     let res = await request(server)
-  //       .get(`/content/articles/${article._id}/comments`)
-  //       .send(params)
-  //       .expect(200);
-  //     res.body.should.be.eql({comments: [{
-  //       ...comment,
-  //       replyCount: 0,
-  //       createTime: res.body.comments[0].createTime,
-  //       user: {
-  //         _id: user._id,
-  //         login: user.login
-  //       }
-  //     }]});
-  //   });
-  // });
+    it('should get article image from cache and update time', async () => {
+      let user = await new mongoose.models['User']({...userParams, reactions: {'1': false}}).save();
+      let image = fs.readFileSync('app/content/test/image.png');
+      const stream = new Readable();
+      stream.push(image);
+      stream.push(null);
+      const sdkStream = sdkStreamMixin(stream);
+      s3Mock.on(GetObjectCommand).resolves({Body: sdkStream}); 
+      let data = {
+        _id: '1',
+        images: {'hash': 's3key.png'},
+        text: '<img src=hash><img src=hash>'
+      };
+      contentService._images = {
+        'hash': {
+          base64: image.toString('base64'),
+          time: Date.now() - 1000
+        },
+        'timedout': {
+          base64: image.toString('base64'),
+          time: Date.now() - conf.imageCachingTimeInMinutes * 60 * 1000 - 1
+        }
+      };
+      let article = await contentService._articleSetData(data, {locals:{user: {_id: '1'}}});
+      should(article).be.eql({
+        _id: '1',
+        likes: 0,
+        dislikes: 1,
+        userReaction: false,
+        text: `<img src="data:image/png;base64,${image.toString('base64')}" alt="">` +
+        `<img src="data:image/png;base64,${image.toString('base64')}" alt="">`
+      });
+      should(s3Mock.calls().length).be.eql(0);
+      should(contentService._images).be.eql({
+        'hash': {
+          base64: image.toString('base64'),
+          time: Date.now()
+        }
+      });
+    });
+  });
   
   /**
    * @test ContentService#_checkPagination
@@ -830,6 +1130,5 @@ describe('ContentService', () => {
       limit.should.be.eql(25);
       offset.should.be.eql(1000);
     });
-  });
-  
+  });  
 });

@@ -6,6 +6,12 @@ import { ValidationError } from '../errorHandler/errorHandler.es6';
 import { v4 } from 'uuid';
 import { UnauthorizedError } from '../errorHandler/errorHandler.es6';
 import { NotFoundError } from '../errorHandler/errorHandler.es6';
+import { PutObjectCommand, GetObjectCommand, S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import _ from 'lodash';
+import sizeOf from 'buffer-image-size';
+import crypto from 'crypto';
+import path from 'path';
+import htmlValidator from 'html-validator';
 
 /**
  * Class for content request
@@ -29,7 +35,25 @@ export default class ContentService {
     this._commentModel = commentModel.Comment;
     this._tagModel = tagModel.Tag;
     this._subjectModel = subjectModel.Subject;
+    if (config.aws) {
+      this._s3 = new S3Client({
+        region: config.aws.region,
+        credentials: {
+          accessKeyId: config.aws.accessKeyId,
+          secretAccessKey: config.aws.secretAccessKey 
+        }
+      });
+      this._bucketName = config.aws.bucket;
+    }
     this._logger = log4js.getLogger('ContentService');
+    this._images = {};
+  }
+
+  /**
+   * Get unique id
+   */
+  getId() {
+    return v4();
   }
 
   /**
@@ -42,22 +66,10 @@ export default class ContentService {
       const tags = await this._tagModel.find({ name: {$regex: new RegExp(filter, 'i')}}).select('_id');
       const subjects = await this._subjectModel.find({name: {$regex: new RegExp(filter, 'i')}}).select('_id');
       const users = await this._userModel.find({ login: {$regex: new RegExp(filter, 'i')} }).select('_id');
-      let articles = await this._articleModel.getAllOrBySubjectOrUserOrTags(subjects, users, tags, limit, offset);
+      let articles = await this._articleModel.
+        getAllOrBySubjectOrUserOrTags(subjects, users, tags, false, limit, offset);
       for (let article of articles) {
-        let reactions = await this._userModel.getAritcleReactions(article._id);
-        let likes = 0, dislikes = 0;
-        reactions.forEach(user => {
-          if (user.reaction) {
-            likes++;
-          } else {
-            dislikes++;
-          }
-          if (user._id === (res.locals.user || {})._id) {
-            article.userReaction = user.reaction;
-          }
-        });
-        article.likes = likes;
-        article.dislikes = dislikes;
+        article = await this._articleSetData(article, res);
       }
       return res.status(200).json({articles});
     } catch (err) {
@@ -66,29 +78,60 @@ export default class ContentService {
     }
   }
 
+  async _articleSetData(article, res) {
+    let reactions = await this._userModel.getAritcleReactions(article._id);
+    let likes = 0, dislikes = 0;
+    reactions.forEach(user => {
+      if (user.reaction) {
+        likes++;
+      } else {
+        dislikes++;
+      }
+      if (user._id === (res.locals.user || {})._id) {
+        article.userReaction = user.reaction;
+      }
+    });
+    article.likes = likes;
+    article.dislikes = dislikes;
+    for (let hash of Object.keys(article.images || {})) {
+      let base64 = this._images[hash]?.time ? this._images[hash]?.base64 : 
+        await (await this._s3.send(new GetObjectCommand({
+          Bucket: this._bucketName,
+          Key: article.images[hash]
+        }))).Body.transformToString('base64');
+      this._images[hash] = {
+        base64,
+        time: Date.now()
+      };
+      let type = path.extname(article.images[hash]);
+      article.text = article.text.replace(
+        new RegExp(`<img src=${hash}>`, 'g'), `<img src="data:image/${type.slice(1, type.length)};` +
+        `base64,${this._images[hash].base64}" alt="">`);
+    }
+    delete article.images;
+    this._freeImages();
+    return article;
+  }
+
+  _freeImages() {
+    for (let hash of Object.keys(this._images)) {
+      if (Date.now() - this._images[hash].time > this._config.imageCachingTimeInMinutes * 60 * 1000) {
+        delete this._images[hash];
+      }
+    }
+  }
+
   /**
-   * Get articles ordered by time
+   * Get articles by user ordered by time
    */
   async getArticlesByUserId(req, res, next) {
     try {
       const {limit, offset} = this._checkPagination(req);
       const userId = req.params.userId;
-      let articles = await this._articleModel.getAllOrBySubjectOrUserOrTags([], [{_id: userId}], [], limit, offset);
+      let articles = await this._articleModel.
+        getAllOrBySubjectOrUserOrTags([], [{_id: userId}], [], true, limit, offset);
       for (let article of articles) {
-        let reactions = await this._userModel.getAritcleReactions(article._id);
-        let likes = 0, dislikes = 0;
-        reactions.forEach(user => {
-          if (user.reaction) {
-            likes++;
-          } else {
-            dislikes++;
-          }
-          if (user._id === (res.locals.user || {})._id) {
-            article.userReaction = user.reaction;
-          }
-        });
-        article.likes = likes;
-        article.dislikes = dislikes;
+        article = await this._articleSetData(article, res);
       }
       return res.status(200).json({articles});
     } catch (err) {
@@ -98,28 +141,16 @@ export default class ContentService {
   }
 
   /**
-   * Get articles ordered by time
+   * Get articles by subject ordered by time
    */
   async getArticlesBySubjectId(req, res, next) {
     try {
       const {limit, offset} = this._checkPagination(req);
       const subjectId = req.params.subjectId;
-      let articles = await this._articleModel.getAllOrBySubjectOrUserOrTags([{_id: subjectId}], [], [], limit, offset);
+      let articles = await this._articleModel.
+        getAllOrBySubjectOrUserOrTags([{_id: subjectId}], [], [], true, limit, offset);
       for (let article of articles) {
-        let reactions = await this._userModel.getAritcleReactions(article._id);
-        let likes = 0, dislikes = 0;
-        reactions.forEach(user => {
-          if (user.reaction) {
-            likes++;
-          } else {
-            dislikes++;
-          }
-          if (user._id === (res.locals.user || {})._id) {
-            article.userReaction = user.reaction;
-          }
-        });
-        article.likes = likes;
-        article.dislikes = dislikes;
+        article = await this._articleSetData(article, res);
       }
       return res.status(200).json({articles});
     } catch (err) {
@@ -129,28 +160,16 @@ export default class ContentService {
   }
 
   /**
-   * Get articles ordered by time
+   * Get articles by tag ordered by time
    */
   async getArticlesByTagId(req, res, next) {
     try {
       const {limit, offset} = this._checkPagination(req);
       const tagId = req.params.tagId;
-      let articles = await this._articleModel.getAllOrBySubjectOrUserOrTags([], [], [{_id: tagId}], limit, offset);
+      let articles = await this._articleModel.
+        getAllOrBySubjectOrUserOrTags([], [], [{_id: tagId}], true, limit, offset);
       for (let article of articles) {
-        let reactions = await this._userModel.getAritcleReactions(article._id);
-        let likes = 0, dislikes = 0;
-        reactions.forEach(user => {
-          if (user.reaction) {
-            likes++;
-          } else {
-            dislikes++;
-          }
-          if (user._id === (res.locals.user || {})._id) {
-            article.userReaction = user.reaction;
-          }
-        });
-        article.likes = likes;
-        article.dislikes = dislikes;
+        article = await this._articleSetData(article, res);
       }
       return res.status(200).json({articles});
     } catch (err) {
@@ -159,23 +178,56 @@ export default class ContentService {
     }
   }
 
-  /**
-   * Create new article
-   */
   // eslint-disable-next-line complexity
-  async createArticle(req, res, next) {
+  async upsertArticle(req, res, next) {
     let newSubject;
     let newTags = [];
-    let article;
+    let articleId;
     try {
-      await this._validateCreateArticles(req);
+      await this._validateUpsertArticles(req);
       const userId = res.locals.user._id;
-      let user = await this._userModel.findOne({_id: userId});
+      articleId = _.defaultTo(req.params.articleId, this.getId());
+      let newRating;
+      let article;
+      if (req.params.articleId) {
+        article = await this._articleModel.findOne({_id: req.params.articleId});   
+        if (!article) {
+          throw new NotFoundError(`Not found article with id ${articleId}`);
+        }
+        if (article.user !== userId) {
+          throw new UnauthorizedError('Wrong user defined');
+        }
+      }
       let subject = await this._subjectModel.findOne({name: req.body.subject});
+      if (subject) {        
+        let articleOnSubject = await this._articleModel.find(
+          {subject: subject._id, user: userId});
+        if (articleOnSubject.length && (!article || articleOnSubject.some(a => a._id !== article._id))) {
+          throw new ValidationError(`Ви вже маєте відгук на ${subject.name}. ` +
+            'Змініть існуючий відгук чи оберіть іншу тему');
+        }
+      }
+      if (article && (!subject || subject._id !== article.subject)) {
+        let oldSubject = await this._subjectModel.findById(article.subject);
+        let countOld = await this._articleModel.find({subject: oldSubject._id}).count();
+        if (countOld > 1) {
+          oldSubject.rating = (oldSubject.rating * countOld - article.rating) / (countOld - 1);
+          await oldSubject.save();
+        } else {
+          await this._subjectModel.deleteOne({_id: oldSubject._id});
+        }
+      }
       if (!subject) {
-        subject = new this._subjectModel({ _id: v4(), name: req.body.subject});
+        subject = new this._subjectModel({ _id: this.getId(), name: req.body.subject});
         await subject.save();
-        newSubject = subject._id;
+      }
+      let count = await this._articleModel.find({subject: subject._id}).count();
+      if (req.params.articleId && subject._id === article.subject) {
+        let dif = req.body.rating - article.rating;
+        newRating = (subject.rating * count + dif) / count;
+      } else {
+        newRating = (((subject.rating || 0) * Math.max(0, count)) + req.body.rating) /
+          (count + 1);
       }
       let tags = [];
       for (let name of (req.body.tags || [])) {
@@ -186,22 +238,75 @@ export default class ContentService {
         }
         tags.push(tag);
       }
-      article = await new this._articleModel({
-        _id: v4(),
+      let imagesToPush = [];
+      if (req.body.text) {
+        let isValidHtml = await htmlValidator({data: req.body.text, format: 'text', 
+          ignore: ['Error: Start tag seen without seeing a doctype first. Expected “<!DOCTYPE html>”.',
+            'Error: Element “head” is missing a required instance of child element “title”.',
+            'Error: An “img” element must have an “alt” attribute, except under certain conditions. ' +
+            'For details, consult guidance on providing text alternatives for images.',
+            'Error: Non-space characters found without seeing a doctype first. Expected “<!DOCTYPE html>”.']});
+        if (isValidHtml.includes('There were errors.')) {
+          throw new ValidationError('Текст повинен бути правильним html');
+        }
+        let images = [...req.body.text.matchAll(/<img[^<>]*>/g)];
+        images = _.uniq(images.map(i => i[0]));
+        if (images.length > this._config.maxArticleImagesCount) {
+          throw new ValidationError(
+            `Відгук може містити до унікальних ${this._config.maxArticleImagesCount} зображень`);
+        }
+        for (let image of images) {
+          let bufStr = image.match(/,.*"/g)[0];
+          bufStr = bufStr.substring(1, bufStr.length - 2);
+          let buffer = Buffer.from(bufStr, 'base64');
+          let dimensions = sizeOf(buffer);
+          if (Math.max(dimensions.height, dimensions.width) > this._config.articleImageMaxSize) {
+            throw new ValidationError('The max size of image is 512x512 pixels');
+          }
+          const hashSum = crypto.createHash('sha256');
+          hashSum.update(buffer);
+          
+          const hex = hashSum.digest('hex');
+          imagesToPush.push({buffer, type: dimensions.type, hash: hex, source: image});
+        }
+      }
+      let data = {
         rating: req.body.rating,
         text: req.body.text,
         createTime: new Date(),
         user: userId,
         subject,
-        tags: tags.map(t => t._id)
-      }).save();
-      let count = await this._articleModel.find({subject: subject._id}).count();
-      subject.rating = ((subject.rating * (count - 1) || 0) + article.rating) /
-        count;
+        tags: tags.map(t => t._id),
+        images: {}
+      };
+      for (let image of _.uniqBy(imagesToPush, 'hash')) {
+        let originalname = `${image.hash}.${image.type}`;
+        if (!article || !(article.images || {})[image.hash]) {
+          await this._s3.send(new PutObjectCommand({
+            Body: image.buffer,
+            Bucket: this._bucketName,
+            Key: `${userId}/articles/${articleId}/${originalname}`
+          }));
+        }
+        data.images[image.hash] = `${userId}/articles/${articleId}/${originalname}`;
+        data.text = data.text.replace(new RegExp(
+          image.source.replace(/\//g, '\\/').replace(/\+/g, '\\+'), 'g'), `<img src=${image.hash}>`);
+      }
+      await this._articleModel.updateOne({_id: articleId}, {$set: data},  {upsert: true});
+      subject.rating = newRating;
       await subject.save();
-      res.status(200).json({_id: article._id});
+      if (article) {
+        let oldHashes = _.difference(Object.keys(article.images || {}), Object.keys(data.images || {}));
+        for (let hash of oldHashes) {
+          await this._s3.send(new DeleteObjectCommand({
+            Bucket: this._bucketName,
+            Key: article.images[hash]
+          }));
+        }
+      }
+      res.status(200).json({_id: articleId});
     } catch (err) {
-      this._logger.error('Error creating article', err);
+      this._logger.error('Error upsert article', err);
       try {
         if (newSubject) {
           await this._subjectModel.deleteOne({_id: newSubject});
@@ -209,8 +314,8 @@ export default class ContentService {
         if (newTags.length) {
           await this._tagModel.deleteMany({_id: {$in: newTags}});
         }
-        if (article) {
-          await this._articleModel.deleteOne({_id: article._id});
+        if (!req.params.articleId) {
+          await this._articleModel.deleteOne({_id: articleId});
         }
       } catch (e) {
         this._logger.error('Can not clear data creating article error', e);
@@ -219,7 +324,7 @@ export default class ContentService {
     }
   }
   
-  async _validateCreateArticles(req) {
+  async _validateUpsertArticles(req) {
     try {
       let validations = [
         body('subject')
@@ -239,63 +344,20 @@ export default class ContentService {
   }
 
   /**
-   * Update article 
+   * Get article by id
    */
-  async updateArticle(req, res, next) {
+  async getArticleById(req, res, next) {
     try {
-      await this._validateUpdateArticle(req);
-      let article = await this._articleModel.findOne({_id: req.params.articleId});
-      const userId = res.locals.user._id;
-      if (article.user !== userId) {
-        throw new UnauthorizedError('Wrong user defined');
+      const articleId = req.params.articleId;
+      let article = await this._articleModel.getArticle(articleId);
+      if (!article) {
+        throw new NotFoundError(`Not found article with id ${articleId}`);
       }
-      if (req.body.text !== article.text) {
-        article.text = req.body.text;
-      }
-      if (req.body.rating && (req.body.rating !== article.rating)) {
-        let dif = req.body.rating - article.rating;
-        article.rating = req.body.rating;
-        await article.save();
-        let subject = await this._subjectModel.findOne({_id: article.subject});
-        let count = await this._articleModel.find({subject: subject._id}).count();
-        subject.rating = (subject.rating * count + dif) / count;
-        await subject.save();
-      } else {
-        await article.save();
-      }
-      res.status(200).send();
+      article = await this._articleSetData(article, res);
+      return res.status(200).json(article);
     } catch (err) {
-      this._logger.error('Error updating article', err);
+      this._logger.error(`Failed to get article with id ${req.params.articleId}`, err);
       next(err);
-    }
-  }
-
-  async _validateUpdateArticle(req) {
-    try {
-      let validations = [
-        param('articleId')
-          .notEmpty().withMessage('Необхідно вказати статтю')
-          .custom((value) => {
-            let query = this._articleModel.findOne({ _id: value});
-            return query.exec().then(article => {
-              if (!article) {
-                return Promise.reject('Статті не знайдено');
-              }
-            });
-          }),
-        body('rating')
-          .optional()
-          .isInt({min: 1, max: 5}).withMessage('Оцінка має бути від 1 до 5'),
-        body('subject')
-          .optional({nullable: true})
-          .customSanitizer(value => {return value.replace(/^\s+|\s+$/g, '');}),        
-        body('tags')
-          .optional({nullable: true})
-          .customSanitizer(value => {return value.map(el => el.replace(/^\s+|\s+$/g, ''));})
-      ];
-      await this._validate(req, validations);
-    } catch (err) {
-      throw new ValidationError('Update article error', err);
     }
   }
 
@@ -307,7 +369,7 @@ export default class ContentService {
       let tagId = req.params.tagId;
       let tag = await this._tagModel.findById(tagId);
       if (!tag) {
-        throw new NotFoundError(`Not found Tag wit id ${tagId}`);
+        throw new NotFoundError(`Not found Tag with id ${tagId}`);
       }
       return res.status(200).json(tag);
     } catch (err) {
@@ -349,7 +411,7 @@ export default class ContentService {
   }
 
   /**
-   * Get subject ordered by articles count
+   * Get subjects ordered by articles count
    */
   async getSubjects(req, res, next) {
     try {
@@ -363,6 +425,9 @@ export default class ContentService {
     }
   }
 
+  /**
+   * Get users logins, subjects names and tags names for filters
+   */
   async getFilters(req, res, next) {
     try {
       const filter = req.params.filter;
@@ -376,8 +441,8 @@ export default class ContentService {
       const tags = await this._tagModel.find({name: {$regex: new RegExp(filter, 'i')}})
         .limit(limit)
         .lean();
-      return res.set('Cache-Control', 'public, max-age=300').status(200).json({filters: []
-        .concat(users.map(u => u.login), subjects.map(s => s.name), tags.map(t => t.name))});     
+      return res.set('Cache-Control', 'public, max-age=300').status(200).json({filters: 
+        _.union(users.map(u => u.login), subjects.map(s => s.name), tags.map(t => t.name))});     
     } catch (err) {
       this._logger.error('Error getting filters', err);
       next(err);

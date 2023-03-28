@@ -226,6 +226,9 @@ export default class ContentSocketService {
         }
         article.comments = comments;
       }
+      if (Object.keys(article.images || {}).length) {
+        delete article.text;
+      }
       this._websocket.emit(this._articleFeedNsp, socketId, `article-update-${articleId}`, article);
     } catch (err) {
       this._logger.error(`Failed send article ${articleId} to ${socketId} ${this._intervals[socketId]}`, err);
