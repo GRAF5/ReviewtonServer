@@ -71,7 +71,6 @@ export default class ContentService {
       for (let article of articles) {
         article = await this._articleSetData(article, res);
       }
-      this._logger.info('', articles);
       return res.status(200).json({articles});
     } catch (err) {
       this._logger.error('Error getting articles', err);
