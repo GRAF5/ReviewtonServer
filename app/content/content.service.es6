@@ -273,11 +273,12 @@ export default class ContentService {
       let data = {
         rating: req.body.rating,
         text: req.body.text,
-        createTime: new Date(),
+        createTime: article ? article.createTime : new Date(),
         user: userId,
         subject,
         tags: tags.map(t => t._id),
-        images: {}
+        images: {},
+        changed: article ? true : false
       };
       for (let image of _.uniqBy(imagesToPush, 'hash')) {
         let originalname = `${image.hash}.${image.type}`;

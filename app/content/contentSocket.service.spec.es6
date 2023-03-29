@@ -97,7 +97,8 @@ describe('ContentSocketService', () => {
       views: 1,
       likes: 0,
       dislikes: 0,
-      commentsCount: 0
+      commentsCount: 0,
+      changed: false
     });
     client.on('article-update-a1', mock);
     await new Promise(res => setTimeout(res, 25));
