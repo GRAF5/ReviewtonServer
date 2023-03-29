@@ -273,11 +273,12 @@ export default class ContentService {
       let data = {
         rating: req.body.rating,
         text: req.body.text,
-        createTime: new Date(),
+        createTime: article ? article.createTime : new Date(),
         user: userId,
         subject,
         tags: tags.map(t => t._id),
-        images: {}
+        images: {},
+        changed: article ? true : false
       };
       for (let image of _.uniqBy(imagesToPush, 'hash')) {
         let originalname = `${image.hash}.${image.type}`;
@@ -335,6 +336,8 @@ export default class ContentService {
           .isInt({min: 1, max: 5}).withMessage('Оцінка має бути від 1 до 5'),
         body('tags')
           .optional({nullable: true})
+          .isArray()
+          .custom(value => { return value.every(v => !/^\s*$/.test(v));}).withMessage('Тег не може бути порожнім')
           .customSanitizer(value => {return value.map(el => el.replace(/^\s+|\s+$/g, ''));})
       ];
       await this._validate(req, validations);

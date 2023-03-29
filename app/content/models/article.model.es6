@@ -17,6 +17,7 @@ export default class ArticleModel {
       subject: {type: Schema.Types.String, ref: 'Subject', required: true},
       tags: [{type: Schema.Types.String, ref: 'Tag', default: []}],
       views: {type: Number, default: 0},
+      changed: {type: Boolean, default: false},
       images: {}
       // likes: {type: Number, default: 0},
       // dislikes: {type: Number, default: 0}

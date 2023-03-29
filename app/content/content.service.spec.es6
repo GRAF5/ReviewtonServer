@@ -104,7 +104,8 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '2', rating: 5, text: 'Test 2', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
-          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0}]}));
+          subject: subject, tags:[], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0}]}));
     });
 
     it('should get all articles if name not defined', async () => {
@@ -121,10 +122,12 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
-          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0},
+          subject: subject, tags:[], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0},
         {_id: '2', rating: 5, text: 'Test 2', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
-          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0}]}));
+          subject: subject, tags:[], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0}]}));
     });
     
     it('should get articles ordered by create time', async () => {
@@ -145,13 +148,16 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '2', rating: 5, text: 'Test 2', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
-          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0},
+          subject: subject, tags:[], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0},
         {_id: '3', rating: 5, text: 'Test 3', 
           createTime: '2022-09-03T16:38:04.447Z', user: {_id: user._id, login: user.login}, 
-          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0},
+          subject: subject, tags:[], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0},
         {_id: '1', rating: 5, text: 'Test 1', 
           createTime: '2022-09-03T16:38:03.447Z', user: {_id: user._id, login: user.login}, 
-          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0}]}));
+          subject: subject, tags:[], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0}]}));
     });
 
     it('should get articles by subjects name', async () => {
@@ -173,10 +179,12 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
-          subject: subject1, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0},
+          subject: subject1, tags:[], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0},
         {_id: '2', rating: 5, text: 'Test 2', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
-          subject: subject2, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0}]}));
+          subject: subject2, tags:[], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0}]}));
     });
 
     it('should get articles by tag name', async () => {
@@ -203,7 +211,8 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
-          subject: sub1, tags:[tag1], views: 0, commentsCount: 0, likes: 0, dislikes: 0}]}));
+          subject: sub1, tags:[tag1], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0}]}));
     });
 
     it('should get articles by user login', async () => {
@@ -225,7 +234,8 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: 'Test 1', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user1._id, login: user1.login}, 
-          subject: sub1, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0}]}));
+          subject: sub1, tags:[], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0}]}));
     });
   });
 
@@ -257,10 +267,12 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: '', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
-          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0},
+          subject: subject, tags:[], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0},
         {_id: '2', rating: 5, text: 'Test 2', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
-          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0}]}));
+          subject: subject, tags:[], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0}]}));
     });
   });
 
@@ -293,10 +305,12 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: '', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
-          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0},
+          subject: subject, tags:[], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0},
         {_id: '3', rating: 5, text: 'Test 3', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user2._id, login: user.login}, 
-          subject: subject, tags:[], views: 0, commentsCount: 0, likes: 0, dislikes: 0}]}));
+          subject: subject, tags:[], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0}]}));
     });
   });
 
@@ -331,7 +345,8 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify({articles: [
         {_id: '1', rating: 5, text: '', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
-          subject: subject, tags:[{_id: '1', name: 'Tag1'}], views: 0, commentsCount: 0, likes: 0, dislikes: 0}]}));
+          subject: subject, tags:[{_id: '1', name: 'Tag1'}], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0}]}));
     });
   });
 
@@ -540,7 +555,8 @@ describe('ContentService', () => {
         images: {},
         tags: [],
         views: 0,
-        user: user._id
+        user: user._id,
+        changed: false
       });
       Date(article.createTime).should.be.eql(Date(Date.now()));
       let subject = await mongoose.models['Subject'].findById(article.subject).lean();
@@ -573,7 +589,8 @@ describe('ContentService', () => {
         tags: [],
         views: 0,
         user: user._id,
-        text: `<img src=${hex}><img src=${hex}>`
+        text: `<img src=${hex}><img src=${hex}>`,
+        changed: false
       });
       Date(article.createTime).should.be.eql(Date(Date.now()));
       let subject = await mongoose.models['Subject'].findById(article.subject).lean();
@@ -874,7 +891,8 @@ describe('ContentService', () => {
       res.text.should.be.eql(JSON.stringify(
         {_id: '1', rating: 5, text: '', 
           createTime: '2022-09-03T16:38:05.447Z', user: {_id: user._id, login: user.login}, 
-          subject: subject, tags: [], views: 0, commentsCount: 0, likes: 0, dislikes: 0}));
+          subject: subject, tags: [], views: 0,
+          changed: false, commentsCount: 0, likes: 0, dislikes: 0}));
     });
   });
 
