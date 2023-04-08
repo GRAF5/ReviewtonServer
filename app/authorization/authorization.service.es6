@@ -20,7 +20,7 @@ export default class AuthorizationService {
   async current(req, res, next) {
     try {
       const {token, user} = await this._checkToken(req.headers.authorization);
-      res.status(200).json({
+      return this._send(res, 200, {
         token,
         id: user._id,
         login: user.login,
@@ -28,8 +28,7 @@ export default class AuthorizationService {
         role: user.role,
         tagSubscriptions: user.tagSubscriptions,
         subjectSubscriptions: user.subjectSubscriptions,
-        userSubscriptions: user.userSubscriptions
-      });
+        userSubscriptions: user.userSubscriptions});
     } catch (err) {
       this._logger.error('Error getting current user', err);
       next(err);
@@ -104,5 +103,9 @@ export default class AuthorizationService {
         return {};
       }
     }
+  }
+  
+  _send(res, status, data = {}, age = 300) {
+    return res.set(`Cache-Control', 'public, max-age=${age}`).status(status).json(data);
   }
 }

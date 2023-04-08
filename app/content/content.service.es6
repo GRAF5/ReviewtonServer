@@ -71,7 +71,7 @@ export default class ContentService {
       for (let article of articles) {
         article = await this._articleSetData(article, res);
       }
-      return res.status(200).json({articles});
+      return this._send(res, 200, {articles});
     } catch (err) {
       this._logger.error('Error getting articles', err);
       next(err);
@@ -90,7 +90,7 @@ export default class ContentService {
       for (let article of articles) {
         article = await this._articleSetData(article, res);
       }
-      return res.status(200).json({articles});
+      return this._send(res, 200, {articles});
     } catch (err) {
       this._logger.error('Error getting articles', err);
       next(err);
@@ -152,7 +152,7 @@ export default class ContentService {
       for (let article of articles) {
         article = await this._articleSetData(article, res);
       }
-      return res.status(200).json({articles});
+      return this._send(res, 200, {articles});
     } catch (err) {
       this._logger.error('Error getting articles', err);
       next(err);
@@ -171,7 +171,7 @@ export default class ContentService {
       for (let article of articles) {
         article = await this._articleSetData(article, res);
       }
-      return res.status(200).json({articles});
+      return this._send(res, 200, {articles});
     } catch (err) {
       this._logger.error('Error getting articles', err);
       next(err);
@@ -190,7 +190,7 @@ export default class ContentService {
       for (let article of articles) {
         article = await this._articleSetData(article, res);
       }
-      return res.status(200).json({articles});
+      return this._send(res, 200, {articles});
     } catch (err) {
       this._logger.error('Error getting articles', err);
       next(err);
@@ -331,7 +331,7 @@ export default class ContentService {
           }));
         }
       }
-      res.status(200).json({_id: articleId});
+      return this._send(res, 200, {_id: articleId});
     } catch (err) {
       this._logger.error('Error upsert article', err);
       try {
@@ -390,7 +390,7 @@ export default class ContentService {
         throw new NotFoundError(`Не знайдено відгуку ${articleId}`);
       }
       article = await this._articleSetData(article, res);
-      return res.status(200).json(article);
+      return this._send(res, 200, article);
     } catch (err) {
       this._logger.error(`Failed to get article with id ${req.params.articleId}`, err);
       next(err);
@@ -407,7 +407,7 @@ export default class ContentService {
       if (!tag) {
         throw new NotFoundError(`Не знайдено тегу ${tagId}`);
       }
-      return res.status(200).json(tag);
+      return this._send(res, 200, tag);
     } catch (err) {
       this._logger.error('Error getting tag by id', err);
       next(err);
@@ -422,7 +422,7 @@ export default class ContentService {
       let filter = req.query.filter || '';
       const {limit, offset} = this._checkPagination(req);
       let tags = await this._tagModel.getTags(filter, limit, offset);
-      return res.status(200).json({tags});
+      return this._send(res, 200, {tags});
     } catch (err) {
       this._logger.error('Error getting tags', err);
       next(err);
@@ -439,7 +439,7 @@ export default class ContentService {
       if (!subject) {
         throw new NotFoundError(`Не знайдено теми ${subjectId}`);
       }
-      return res.status(200).json(subject);
+      return this._send(res, 200, subject);
     } catch (err) {
       this._logger.error('Error getting subject by id', err);
       next(err);
@@ -454,7 +454,7 @@ export default class ContentService {
       let filter = req.query.filter || '';
       const {limit, offset} = this._checkPagination(req);
       let subjects = await this._subjectModel.getWithFilter(filter, limit, offset);
-      return res.status(200).json({subjects});
+      return this._send(res, 200, {subjects});
     } catch (err) {
       this._logger.error('Error getting subjects', err);
       next(err);
@@ -477,36 +477,12 @@ export default class ContentService {
       const tags = await this._tagModel.find({name: {$regex: new RegExp(filter, 'i')}})
         .limit(limit)
         .lean();
-      return res.set('Cache-Control', 'public, max-age=300').status(200).json({filters: 
-        _.union(users.map(u => u.login), subjects.map(s => s.name), tags.map(t => t.name))});     
+      return this._send(res, 200, {filters: 
+        _.union(users.map(u => u.login), subjects.map(s => s.name), tags.map(t => t.name))});    
     } catch (err) {
       this._logger.error('Error getting filters', err);
       next(err);
     }
-  }
-
-  _checkPagination(req, mLimit) {
-    let limit = req.query.limit ? +((+req.query.limit).toFixed()) : mLimit ? mLimit : 200;
-    let offset = req.query.offset ? +((+req.query.offset).toFixed()) : 0;
-    if (limit < 1) {
-      limit = 1;
-    }
-    if (limit > 25) {
-      limit = 25;
-    }
-    if (offset < 0) {
-      offset = 0;
-    }
-    return {limit, offset};
-  }
-
-  async _validate(req, validations) {
-    await Promise.all(validations.map(validation => validation.run(req)));
-    const errors = validationResult(req);
-    if (errors.isEmpty()) {
-      return;
-    }
-    throw errors;
   }
 
   async getDataForSitemap(req, res, next) {
@@ -541,7 +517,7 @@ export default class ContentService {
         .map(t => {return {_id: t._id, createTime: findTagTime(articles, t._id)};});
       const users = (await this._userModel.find().lean())
         .map(u => {return {_id: u._id, createTime: u.createTime};});
-      return res.status(200).json({
+      return this._send(res, 200, {
         subjects,
         articles,
         tags,
@@ -551,5 +527,33 @@ export default class ContentService {
       this._logger.error('Error getting data for sitemap', err);
       next(err);
     }
+  }
+
+  _send(res, status, data = {}, age = 300) {
+    return res.set(`Cache-Control', 'public, max-age=${age}`).status(status).json(data);
+  }
+
+  _checkPagination(req, mLimit) {
+    let limit = req.query.limit ? +((+req.query.limit).toFixed()) : mLimit ? mLimit : 200;
+    let offset = req.query.offset ? +((+req.query.offset).toFixed()) : 0;
+    if (limit < 1) {
+      limit = 1;
+    }
+    if (limit > 25) {
+      limit = 25;
+    }
+    if (offset < 0) {
+      offset = 0;
+    }
+    return {limit, offset};
+  }
+  
+  async _validate(req, validations) {
+    await Promise.all(validations.map(validation => validation.run(req)));
+    const errors = validationResult(req);
+    if (errors.isEmpty()) {
+      return;
+    }
+    throw errors;
   }
 }
