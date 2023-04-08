@@ -25,7 +25,10 @@ export default class AuthorizationService {
         id: user._id,
         login: user.login,
         email: user.email,
-        role: user.role
+        role: user.role,
+        tagSubscriptions: user.tagSubscriptions,
+        subjectSubscriptions: user.subjectSubscriptions,
+        userSubscriptions: user.userSubscriptions
       });
     } catch (err) {
       this._logger.error('Error getting current user', err);
@@ -38,9 +41,9 @@ export default class AuthorizationService {
    * @param {String} method method to require
    * @returns {Function(req, res, next)} Authorization middleware
    */
-  authorize(method) {
+  authorize(method, isRequired) {
     return async (req, res, next) => {
-      let isRequired = method ? true : false;
+      isRequired = isRequired || method ? true : false;
       try {
         const {token, user} = await this._checkToken(req.headers.authorization, isRequired);
         this._requireMethodAccess(method, user?.permissions);
@@ -89,7 +92,7 @@ export default class AuthorizationService {
       if (!data.sub) {
         throw new BadRequestError('Wrong id');
       }
-      const user = await this._userModel.findById(data.sub);
+      const user = await this._userModel.getUserById(data.sub);
       if (!user) {
         throw new NotFoundError(`User with id ${data.sub} not found`);
       }

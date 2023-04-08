@@ -27,8 +27,12 @@ describe('ContentService', () => {
       bucket: 'bucket'
     },
     secret: 'test',
-    maxArticleImagesCount: 3,
-    imageCachingTimeInMinutes: 0.5
+    imageCachingTimeInMinutes: 0.5,
+    maxArticleImagesCount: 5,
+    maxArticleUniqueImagesCount: 3,
+    maxArticleTextLength: 4096,
+    maxSubjectLength: 64,
+    maxTagLength: 64
   };
   const userParams = {
     _id: '1',
@@ -379,8 +383,8 @@ describe('ContentService', () => {
         .get('/content/tags')
         .expect(200);
       res.text.should.be.eql(JSON.stringify({tags: [
-        {_id: '2', name: 'Tag2', articleCount: 2},
-        {_id: '1', name: 'Tag1', articleCount: 1}
+        {_id: '2', name: 'Tag2', subscribers: 0, articleCount: 2},
+        {_id: '1', name: 'Tag1', subscribers: 0, articleCount: 1}
       ]}));
     });
 
@@ -408,9 +412,9 @@ describe('ContentService', () => {
         .get('/content/tags')
         .expect(200);
       res.text.should.be.eql(JSON.stringify({tags: [
-        { _id: '2', name: 'Tag2', articleCount: 3},
-        { _id: '3', name: 'Tag3', articleCount: 2},
-        { _id: '1', name: 'Tag1', articleCount: 1}]}));
+        { _id: '2', name: 'Tag2', subscribers: 0, articleCount: 3},
+        { _id: '3', name: 'Tag3', subscribers: 0, articleCount: 2},
+        { _id: '1', name: 'Tag1', subscribers: 0, articleCount: 1}]}));
     });
     
     it('should get tags by filter', async () => {
@@ -432,7 +436,7 @@ describe('ContentService', () => {
         .query({filter: '1'})
         .expect(200);
       res.text.should.be.eql(JSON.stringify({tags: [
-        {_id: '1', name: 'Tag1', articleCount: 1}
+        {_id: '1', name: 'Tag1', subscribers: 0, articleCount: 1}
       ]}));
     });
   });
@@ -914,7 +918,7 @@ describe('ContentService', () => {
         .get('/content/tags/1')
         .expect(200);
       res.text.should.be.eql(JSON.stringify(
-        {_id: '1', name: 'Tag1'}));
+        {_id: '1', name: 'Tag1', subscribers: 0, articleCount: 0}));
     });
   });
 
@@ -936,7 +940,7 @@ describe('ContentService', () => {
         .get('/content/subjects/1')
         .expect(200);
       res.text.should.be.eql(JSON.stringify(
-        {_id: '1', name: 'Test subject'}));
+        {_id: '1', name: 'Test subject', subscribers: 0, articleCount: 0}));
     });
   });
   
@@ -972,8 +976,8 @@ describe('ContentService', () => {
         .get('/content/subjects')
         .expect(200);
       res.text.should.be.eql(JSON.stringify({subjects: [
-        {_id: '2', name: 'Test subject 2', articleCount: 2},
-        {_id: '1', name: 'Test subject', articleCount: 1}
+        {_id: '2', name: 'Test subject 2', subscribers: 0, articleCount: 2},
+        {_id: '1', name: 'Test subject', subscribers: 0, articleCount: 1}
       ]}));
     });
     
@@ -995,7 +999,7 @@ describe('ContentService', () => {
         .query({filter: '1'})
         .expect(200);
       res.text.should.be.eql(JSON.stringify({subjects: [
-        {_id: '1', name: 'Test subject 1', articleCount: 1}
+        {_id: '1', name: 'Test subject 1', subscribers: 0, articleCount: 1}
       ]}));
     });
   });

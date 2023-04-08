@@ -3,6 +3,7 @@
 import log4js from 'log4js';
 import _ from 'lodash';
 import {v4} from 'uuid';
+import { ValidationError } from '../errorHandler/errorHandler.es6';
 
 export default class ContentSocketService {
 
@@ -176,6 +177,9 @@ export default class ContentSocketService {
     try {
       const {socketId, route, data, user} = context;
       let id = _.defaultTo(data._id, this._getId());
+      if ((data.text || '').length > this._config.maxCommentTextLength) {
+        throw new ValidationError('Перевищено кількість символів');
+      }
       let comment = _.defaultTo(await this._commentModel.findById(data._id).lean(),{
         text: data.text,
         user: user._id,

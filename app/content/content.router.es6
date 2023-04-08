@@ -206,6 +206,10 @@ export default class ContentRouter {
         this._contentService.upsertArticle.bind(this._contentService))
       .get(this._authorization.authorize(),
         this._contentService.getArticles.bind(this._contentService));
+    
+    router.route('/content/articles/user/subscriptions')
+      .get(this._authorization.authorize(undefined, true),
+        this._contentService.getArticlesBySubscriptions.bind(this._contentService));
 
     router.route('/content/articles/user/:userId')
       .get(this._authorization.authorize(),
@@ -227,6 +231,9 @@ export default class ContentRouter {
 
     router.route('/content/filters/:filter')
       .get(this._contentService.getFilters.bind(this._contentService));
+
+    router.route('/content/sitemap')
+      .get(this._contentService.getDataForSitemap.bind(this._contentService));
 
     // router.route('/content/articles/:articleId/comments')    
     //   .post(this._authorization.authorize('create-comment'),

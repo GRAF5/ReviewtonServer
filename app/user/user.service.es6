@@ -4,6 +4,7 @@ import { body, check, param, validationResult } from 'express-validator';
 import jwt from 'jsonwebtoken';
 import log4js from 'log4js';
 import { v4 } from 'uuid';
+import _ from 'lodash';
 import { 
   UnauthorizedError,
   ValidationError,
@@ -19,12 +20,14 @@ export default class UserService {
    * @param param0 
    * @param {Config} param0.config server config
    * @param {UserModel} param0.userModel user model
-   * @param {ArticleModel} param0.articleModel article model
+   * @param {SubjectModel} param0.subjectModel subject model
+   * @param {TagModel} param0.tagModel tag model
    */
-  constructor({config, userModel, articleModel}) {
+  constructor({config, userModel, subjectModel, tagModel}) {
     this._config = config;
     this._userModel = userModel.User;
-    this._articleModel = articleModel.Article;
+    this._subjectModel = subjectModel.Subject;
+    this._tagModel = tagModel.Tag;
     this._logger = log4js.getLogger('UserService');
   }
 
@@ -43,7 +46,14 @@ export default class UserService {
         'create-comment',
         'update-comment'
       ];
-      let user = new this._userModel({...req.body, salt, hash, _id, permissions});
+      let user = new this._userModel({
+        ...req.body, 
+        salt, 
+        hash, 
+        _id, 
+        permissions,
+        createTime: new Date()
+      });
       await user.save();
       res.status(200).json({_id});
     } catch (err) {
@@ -104,7 +114,15 @@ export default class UserService {
         {login: req.body.credentials}) || await this._userModel.findOne({email: req.body.credentials});
       if (user && await this._userModel.verify(req.body.password, user.salt, user.hash)) {
         const token = jwt.sign({sub: user.id}, this._config.secret, { expiresIn: '7d'});
-        res.status(200).json({ token, id: user.id, login: user.login, email: user.email, role: user.role});
+        res.status(200).json({ 
+          token, 
+          id: user.id, 
+          login: user.login, 
+          email: user.email, 
+          role: user.role,
+          tagSubscriptions: user.tagSubscriptions,
+          subjectSubscriptions: user.subjectSubscriptions,
+          userSubscriptions: user.userSubscriptions});
       } else {
         throw new UnauthorizedError('Невірний логін або пароль');
       }
@@ -131,16 +149,115 @@ export default class UserService {
   async getUserById(req, res, next) {
     try {
       const userId = req.params.userId;
-      const user = await this._userModel.findById(userId).lean();
+      const user = await this._userModel.getUserById(userId);
       if (!user) {
-        throw new NotFoundError(`Not found user with id ${userId}`);
+        throw new NotFoundError(`Не знайдено користувача ${userId}`);
       }
       res.status(200).json({
         _id: user._id,
-        login: user.login
+        login: user.login,
+        articleCount: user.articleCount,
+        subscribers: user.subscribers
       });
     } catch (err) {
       this._logger.error('Error to get user', err);
+      next(err);
+    }
+  }
+
+  async addTagSubscription(req, res, next) {
+    try {
+      const userId = res.locals.user._id;
+      const subscriptionId = req.params.subscriptionId;
+      let tag = await this._tagModel.getById(subscriptionId);
+      if (!tag) {
+        throw new NotFoundError(`Not found tag with id ${subscriptionId}`);
+      }
+      res.locals.user.tagSubscriptions.push({_id: subscriptionId, name: tag.name});
+      res.locals.user.subjectSubscriptions = _.uniqBy(res.locals.user.subjectSubscriptions, '_id');
+      await this._userModel.updateUser(userId, {
+        tagSubscriptions: res.locals.user.tagSubscriptions});
+      res.status(200).json({tagSubscriptions: res.locals.user.tagSubscriptions});
+    } catch (err) {
+      this._logger.error('Error to add user subscribtion', err);
+      next(err);
+    }
+  }
+
+  async removeTagSubscription(req, res, next) {
+    try {
+      const userId = res.locals.user._id;
+      const subscriptionId = req.params.subscriptionId;
+      const tagSubscriptions = (res.locals.user.tagSubscriptions || []).filter(sub => sub._id !== subscriptionId);
+      await this._userModel.updateUser(userId, {tagSubscriptions});
+      res.status(200).json({tagSubscriptions});
+    } catch (err) {
+      this._logger.error('Error to remove user subscribtion', err);
+      next(err);
+    }
+  }
+
+  async addSubjectSubscription(req, res, next) {
+    try {
+      const userId = res.locals.user._id;
+      const subscriptionId = req.params.subscriptionId;
+      let subject = await this._subjectModel.getById(subscriptionId);
+      if (!subject) {
+        throw new NotFoundError(`Not found subject with id ${subscriptionId}`);
+      }
+      res.locals.user.subjectSubscriptions.push({_id: subscriptionId, name: subject.name});
+      res.locals.user.subjectSubscriptions = _.uniqBy(res.locals.user.subjectSubscriptions, '_id');
+      await this._userModel.updateUser(userId, {
+        subjectSubscriptions: res.locals.user.subjectSubscriptions});
+      res.status(200).json({subjectSubscriptions: res.locals.user.subjectSubscriptions});
+    } catch (err) {
+      this._logger.error('Error to add user subscribtion', err);
+      next(err);
+    }
+  }
+
+  async removeSubjectSubscription(req, res, next) {
+    try {
+      const userId = res.locals.user._id;
+      const subscriptionId = req.params.subscriptionId;
+      const subjectSubscriptions = (res.locals.user.subjectSubscriptions || [])
+        .filter(sub => sub._id !== subscriptionId);
+      await this._userModel.updateUser(userId, {subjectSubscriptions});
+      res.status(200).json({subjectSubscriptions});
+    } catch (err) {
+      this._logger.error('Error to remove user subscribtion', err);
+      next(err);
+    }
+  }
+
+  async addUserSubscription(req, res, next) {
+    try {
+      const userId = res.locals.user._id;
+      const subscriptionId = req.params.subscriptionId;
+      let user = await this._userModel.getUserById(subscriptionId);
+      if (!user) {
+        throw new NotFoundError(`Not found subject with id ${subscriptionId}`);
+      }
+      res.locals.user.userSubscriptions.push({_id: subscriptionId, login: user.login});
+      res.locals.user.subjectSubscriptions = _.uniqBy(res.locals.user.subjectSubscriptions, '_id');
+      await this._userModel.updateUser(userId, {
+        userSubscriptions: res.locals.user.userSubscriptions});
+      res.status(200).json({userSubscriptions: res.locals.user.userSubscriptions});
+    } catch (err) {
+      this._logger.error('Error to add user subscribtion', err);
+      next(err);
+    }
+  }
+
+  async removeUserSubscription(req, res, next) {
+    try {
+      const userId = res.locals.user._id;
+      const subscriptionId = req.params.subscriptionId;
+      const userSubscriptions = (res.locals.user.userSubscriptions || []).filter(sub => sub._id !== subscriptionId);
+      await this._userModel.updateUser(userId, {userSubscriptions});
+      res.status(200).json({userSubscriptions});
+    } catch (err) {
+      this._logger.error('Error to remove user subscribtion', err);
       next(err);
     }
   }

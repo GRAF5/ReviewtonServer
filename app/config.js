@@ -17,5 +17,10 @@ module.exports = {
     bucket: 'reviewton-staging'
   },
   imageCachingTimeInMinutes: 60,
-  maxArticleImagesCount: 7
+  maxArticleImagesCount: 20,
+  maxArticleUniqueImagesCount: 7,
+  maxArticleTextLength: 4096,
+  maxCommentTextLength: 2048,
+  maxSubjectLength: 64,
+  maxTagLength: 64
 };

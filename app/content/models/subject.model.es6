@@ -15,6 +15,8 @@ export default class SubjectModel {
     };
     const schema = new mongoose.Schema(fields, {versionKey: false});
     schema.statics.getWithFilter = getWithFilter;
+    schema.statics.getById = getById;
+    schema.statics.getSubjects = getSubjects;
     this._model = mongoose.model('Subject', schema);
 
     /**
@@ -23,47 +25,47 @@ export default class SubjectModel {
      * @return {Array[String]} subject ids
      */
     async function getWithFilter(filter, limit = 1000, offset = 0) {
-      let res = await mongoose.connection.models.Article.aggregate([
+      let cond = {name: {$regex: filter}};
+      return await this.getSubjects(cond, limit, offset);
+    }
+    
+    async function getById(id) {
+      let cond = {_id: id};
+      let res = await this.getSubjects(cond, 1, 0);
+      return res[0] || null;
+    }
+
+    async function getSubjects(cond, limit = 1000, offset = 0) {
+      let res = await this.aggregate([
         {
-          '$lookup': {
-            'from': this.collection.name,
-            'localField': 'subject',
-            'foreignField': '_id',
-            'as': 'subjects'
+          $match: cond
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: 'subjectSubscriptions',
+            as: 'subscribers'
           }
         },
         {
-          '$project': {
-            '_id': 1,
-            'name': 1,
-            'subjects': {
-              '$filter': {
-                'input': '$subjects',
-                'as': 'item',
-                'cond': {
-                  '$regexMatch': {
-                    input: '$$item.name', 
-                    regex: filter
-                  }
-                }
-              }
-            }
+          $lookup: {
+            from: 'articles',
+            localField: '_id',
+            foreignField: 'subject',
+            as: 'articleCount'
           }
         },
         {
-          '$unwind': '$subjects'
-        },
-        {
-          '$group': {
-            '_id': '$subjects',
-            'articleCount': {'$sum': 1}
+          $addFields: {
+            subscribers: {$size: '$subscribers'},
+            articleCount: {$size: '$articleCount'}
           }
         }
       ])
         .sort('-articleCount')
         .skip(offset)
         .limit(limit);
-      res = res.map(el => {return {...el._id, articleCount: el.articleCount};});
       return res;
     }
   }

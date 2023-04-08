@@ -19,11 +19,10 @@ export default class ArticleModel {
       views: {type: Number, default: 0},
       changed: {type: Boolean, default: false},
       images: {}
-      // likes: {type: Number, default: 0},
-      // dislikes: {type: Number, default: 0}
     };
     const schema = new mongoose.Schema(fields, {versionKey: false});
     schema.statics.getAllOrBySubjectOrUserOrTags = getAllOrBySubjectOrUserOrTags;
+    schema.statics.getBySubjectOrUserOrTags = getBySubjectOrUserOrTags;
     schema.statics.getArticle = getArticle;
     schema.statics.getArticles = getArticles;
     this._model = mongoose.model('Article', schema);
@@ -53,14 +52,27 @@ export default class ArticleModel {
         filter = Object.assign({}, {text: {$exists : true, $ne : ''}}, filter);
       }
       return await this.getArticles(filter, {createTime: -1}, limit, offset);
-      // return await this.find(filter)
-      //   .sort('-createTime')
-      //   .skip(offset)
-      //   .limit(limit)
-      //   .populate('user', '_id login')
-      //   .populate('tags', '_id name')
-      //   .populate('subject', '_id name')
-      //   .lean();
+    }
+
+    async function getBySubjectOrUserOrTags(subjects, users, tags, empty, limit, offset) {
+      let rules = [];
+      if (subjects.length) {
+        rules.push({subject: {$in: subjects.map(s => s._id)}});
+      }
+      if (users.length) {
+        rules.push({user: {$in: users.map(u => u._id)}});
+      }
+      if (tags.length) {
+        rules.push({tags: {$elemMatch: {$in: tags.map(t => t._id)}}});
+      }
+      if (!rules.length) {
+        return [];
+      }
+      let filter = {$or: rules};
+      if (!empty) {
+        filter = Object.assign({}, {text: {$exists : true, $ne : ''}}, filter);
+      }
+      return await this.getArticles(filter, {createTime: -1}, limit, offset);
     }
 
     async function getArticle(id) {
