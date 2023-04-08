@@ -121,7 +121,10 @@ describe('AuthorizationService', () => {
         id: user._id,
         login: user.login,
         email: user.email,
-        role: user.role
+        role: user.role,
+        subjectSubscriptions: [],
+        tagSubscriptions: [],
+        userSubscriptions: []
       });
     });
   });

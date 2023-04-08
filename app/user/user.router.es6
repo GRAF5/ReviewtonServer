@@ -132,6 +132,24 @@ export default class UserRouter {
 
     router.route('/user/:userId')
       .get(this._userService.getUserById.bind(this._userService));
+    
+    router.route('/user/current/subscriptions/tags/:subscriptionId')
+      .put(this._authorization.authorize(undefined, true),
+        this._userService.addTagSubscription.bind(this._userService))
+      .delete(this._authorization.authorize(undefined, true),
+        this._userService.removeTagSubscription.bind(this._userService));
+    
+    router.route('/user/current/subscriptions/subjects/:subscriptionId')
+      .put(this._authorization.authorize(undefined, true),
+        this._userService.addSubjectSubscription.bind(this._userService))
+      .delete(this._authorization.authorize(undefined, true),
+        this._userService.removeSubjectSubscription.bind(this._userService));
+    
+    router.route('/user/current/subscriptions/users/:subscriptionId')
+      .put(this._authorization.authorize(undefined, true),
+        this._userService.addUserSubscription.bind(this._userService))
+      .delete(this._authorization.authorize(undefined, true),
+        this._userService.removeUserSubscription.bind(this._userService));
     // router.route('/user/:id/viewed')
     //   .get(this._authorization.authorize(),
     //     this._userService.getViewed.bind(this._userService))

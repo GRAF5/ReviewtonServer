@@ -78,6 +78,25 @@ export default class ContentService {
     }
   }
 
+  async getArticlesBySubscriptions(req, res, next) {
+    try {
+      const user = res.locals.user;
+      const {limit, offset} = this._checkPagination(req);
+      const tags = user.tagSubscriptions;
+      const subjects = user.subjectSubscriptions;
+      const users = user.userSubscriptions;
+      let articles = await this._articleModel.
+        getBySubjectOrUserOrTags(subjects, users, tags, true, limit, offset);
+      for (let article of articles) {
+        article = await this._articleSetData(article, res);
+      }
+      return res.status(200).json({articles});
+    } catch (err) {
+      this._logger.error('Error getting articles', err);
+      next(err);
+    }
+  }
+
   async _articleSetData(article, res) {
     let reactions = await this._userModel.getAritcleReactions(article._id);
     let likes = 0, dislikes = 0;
@@ -192,7 +211,7 @@ export default class ContentService {
       if (req.params.articleId) {
         article = await this._articleModel.findOne({_id: req.params.articleId});   
         if (!article) {
-          throw new NotFoundError(`Not found article with id ${articleId}`);
+          throw new NotFoundError(`Не знайдено відгуку ${articleId}`);
         }
         if (article.user !== userId) {
           throw new UnauthorizedError('Wrong user defined');
@@ -220,6 +239,7 @@ export default class ContentService {
       if (!subject) {
         subject = new this._subjectModel({ _id: this.getId(), name: req.body.subject});
         await subject.save();
+        newSubject = subject._id;
       }
       let count = await this._articleModel.find({subject: subject._id}).count();
       if (req.params.articleId && subject._id === article.subject) {
@@ -249,11 +269,17 @@ export default class ContentService {
         if (isValidHtml.includes('There were errors.')) {
           throw new ValidationError('Текст повинен бути правильним html');
         }
-        let images = [...req.body.text.matchAll(/<img[^<>]*>/g)];
-        images = _.uniq(images.map(i => i[0]));
+        let images = [...req.body.text.matchAll(/<img[^<>]*>/g)].map(i => i[0]);
         if (images.length > this._config.maxArticleImagesCount) {
           throw new ValidationError(
-            `Відгук може містити до унікальних ${this._config.maxArticleImagesCount} зображень`);
+            `Відгук може містити до ${this._config.maxArticleUniqueImagesCount} унікальних зображень ` +
+            `та до ${this._config.maxArticleImagesCount} зображень загалом`);
+        }
+        images = _.uniq(images);
+        if (images.length > this._config.maxArticleUniqueImagesCount) {
+          throw new ValidationError(
+            `Відгук може містити до ${this._config.maxArticleUniqueImagesCount} унікальних зображень ` +
+            `та до ${this._config.maxArticleImagesCount} зображень загалом`);
         }
         for (let image of images) {
           let bufStr = image.match(/,.*"/g)[0];
@@ -330,6 +356,8 @@ export default class ContentService {
       let validations = [
         body('subject')
           .notEmpty().withMessage('Необхідно вказати тему')
+          .custom(value => value.replace(/<[^>]*>/g, '').length <= this._config.maxSubjectLength)
+          .withMessage('Перевищено кількість символів теми/назви')
           .customSanitizer(value => {return value.replace(/^\s+|\s+$/g, '');}),
         body('rating')
           .notEmpty().withMessage('Необхідно поставити оцінку')
@@ -338,7 +366,12 @@ export default class ContentService {
           .optional({nullable: true})
           .isArray()
           .custom(value => { return value.every(v => !/^\s*$/.test(v));}).withMessage('Тег не може бути порожнім')
-          .customSanitizer(value => {return value.map(el => el.replace(/^\s+|\s+$/g, ''));})
+          .custom(value => { return value.every(v => v.replace(/<[^>]*>/g, '').length <= this._config.maxTagLength);})
+          .withMessage('Перевищено кількість символів у тегу') 
+          .customSanitizer(value => {return value.map(el => el.replace(/^\s+|\s+$/g, ''));}),
+        body('text')
+          .custom(value => !value || value.replace(/<[^>]*>/g, '').length <= this._config.maxArticleTextLength)
+          .withMessage('Перевищено кількість символів відгуку') 
       ];
       await this._validate(req, validations);
     } catch (err) {
@@ -354,7 +387,7 @@ export default class ContentService {
       const articleId = req.params.articleId;
       let article = await this._articleModel.getArticle(articleId);
       if (!article) {
-        throw new NotFoundError(`Not found article with id ${articleId}`);
+        throw new NotFoundError(`Не знайдено відгуку ${articleId}`);
       }
       article = await this._articleSetData(article, res);
       return res.status(200).json(article);
@@ -370,9 +403,9 @@ export default class ContentService {
   async getTagById(req, res, next) {
     try {
       let tagId = req.params.tagId;
-      let tag = await this._tagModel.findById(tagId);
+      let tag = await this._tagModel.getById(tagId);
       if (!tag) {
-        throw new NotFoundError(`Not found Tag with id ${tagId}`);
+        throw new NotFoundError(`Не знайдено тегу ${tagId}`);
       }
       return res.status(200).json(tag);
     } catch (err) {
@@ -402,9 +435,9 @@ export default class ContentService {
   async getSubjectById(req, res, next) {
     try {
       let subjectId = req.params.subjectId;
-      let subject = await this._subjectModel.findById(subjectId);
+      let subject = await this._subjectModel.getById(subjectId);
       if (!subject) {
-        throw new NotFoundError(`Not found Subject wit id ${subjectId}`);
+        throw new NotFoundError(`Не знайдено теми ${subjectId}`);
       }
       return res.status(200).json(subject);
     } catch (err) {
@@ -474,5 +507,49 @@ export default class ContentService {
       return;
     }
     throw errors;
+  }
+
+  async getDataForSitemap(req, res, next) {
+    try {
+      const findSubjectTime = (articles, search) => {
+        let data = new Date().toISOString();
+        articles.forEach(a => {
+          if (a.subject === search) {
+            if (new Date(data).getTime() > new Date(a.createTime).getTime()) {
+              data = a.createTime;
+            }
+          }
+        });
+        return data;
+      };      
+      const findTagTime = (articles, search) => {
+        let data = new Date().toISOString();
+        articles.forEach(a => {
+          if (a.tags.some(t => t === search)) {
+            if (new Date(data).getTime() > new Date(a.createTime).getTime()) {
+              data = a.createTime;
+            }
+          }
+        });
+        return data;
+      };
+      const articles = (await this._articleModel.find().lean())
+        .map(a => {return {_id: a._id, subject: a.subject, tags: a.tags, createTime: a.createTime};});
+      const subjects = (await this._subjectModel.find().lean())
+        .map(s => {return {_id: s._id, createTime: findSubjectTime(articles, s._id)};});
+      const tags = (await this._tagModel.find().lean())
+        .map(t => {return {_id: t._id, createTime: findTagTime(articles, t._id)};});
+      const users = (await this._userModel.find().lean())
+        .map(u => {return {_id: u._id, createTime: u.createTime};});
+      return res.status(200).json({
+        subjects,
+        articles,
+        tags,
+        users
+      });
+    } catch (err) {
+      this._logger.error('Error getting data for sitemap', err);
+      next(err);
+    }
   }
 }

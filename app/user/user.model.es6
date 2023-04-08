@@ -15,10 +15,14 @@ export default class UserModel {
       email: {type: String, required: true},
       hash: {type: String, required: true},
       salt: {type: String, required: true},
+      createTime: {type: Date, required: true},
       role: {type: String, enum: ['user', 'moderator', 'admin', 'super-admin'], default: 'user'},
       permissions: {type: [String], default: []},
       viewed: {type: Object, default: {}},
-      reactions: {type: Object, default: {}}
+      reactions: {type: Object, default: {}},
+      tagSubscriptions: [{type: Schema.Types.String, ref: 'Tag', default: []}],
+      subjectSubscriptions: [{type: Schema.Types.String, ref: 'Subject', default: []}],
+      userSubscriptions: [{type: Schema.Types.String, ref: 'User', default: []}]
     };
     const schema = new mongoose.Schema(fields, {versionKey: false});
     schema.set('validateBeforeSave', false);
@@ -48,6 +52,7 @@ export default class UserModel {
     };
     schema.statics.getAritcleReactions = getAritcleReactions;
     schema.statics.updateUser = updateUser;
+    schema.statics.getUserById = getUserById;
     this._model = mongoose.model('User', schema);
 
     async function getAritcleReactions(articleId) {
@@ -57,6 +62,40 @@ export default class UserModel {
 
     async function updateUser(_id, data) {
       await this.updateOne({_id}, data);
+    }
+
+    async function getUserById(id) {
+      let res = await this.aggregate([
+        {
+          $match: {_id: id}
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: 'userSubscriptions',
+            as: 'subscribers'
+          }
+        },
+        {
+          $lookup: {
+            from: 'articles',
+            localField: '_id',
+            foreignField: 'user',
+            as: 'articleCount'
+          }
+        },
+        {
+          $addFields: {
+            subscribers: {$size: '$subscribers'},
+            articleCount: {$size: '$articleCount'}
+          }
+        }
+      ]);
+      await this.populate(res, {path: 'tagSubscriptions', select: '_id name'});
+      await this.populate(res, {path: 'subjectSubscriptions', select: '_id name'});
+      await this.populate(res, {path: 'userSubscriptions', select: '_id login'});
+      return res[0] || null;
     }
   }
 

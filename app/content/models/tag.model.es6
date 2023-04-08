@@ -14,50 +14,52 @@ export default class TagModel {
     };
     const schema = new mongoose.Schema(fields, {versionKey: false});
     schema.statics.getTags = getTags;
+    schema.statics.getById = getById;
+    schema.statics._getTags = _getTags;
     this._model = mongoose.model('Tag', schema);
-
+    
     async function getTags(filter, limit, offset) {
-      let res = await mongoose.connection.models.Article.aggregate([
+      let cond = {name: {$regex: filter}};
+      return await this._getTags(cond, limit, offset);
+    }
+
+    async function getById(id) {
+      let cond = {_id: id};
+      let res = await this._getTags(cond, 1, 0);
+      return res[0] || null;
+    }
+
+    async function _getTags(cond, limit, offset) {
+      let res = await this.aggregate([
         {
-          '$lookup': {
-            'from': this.collection.name,
-            'localField': 'tags',
-            'foreignField': '_id',
-            'as': 'tags'
+          $match: cond
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: 'tagSubscriptions',
+            as: 'subscribers'
           }
         },
         {
-          '$project': {
-            '_id': 1,
-            'name': 1,
-            'tags': {
-              '$filter': {
-                'input': '$tags',
-                'as': 'item',
-                'cond': {
-                  '$regexMatch': {
-                    input: '$$item.name', 
-                    regex: filter
-                  }
-                }
-              }
-            }
+          $lookup: {
+            from: 'articles',
+            localField: '_id',
+            foreignField: 'tags',
+            as: 'articleCount'
           }
         },
         {
-          '$unwind': '$tags'
-        },
-        {
-          '$group': {
-            '_id': '$tags',
-            'articleCount': {'$sum': 1}
+          $addFields: {
+            subscribers: {$size: '$subscribers'},
+            articleCount: {$size: '$articleCount'}
           }
         }
       ])
         .sort('-articleCount')
         .skip(offset)
         .limit(limit);
-      res = res.map(el => {return {...el._id, articleCount: el.articleCount};});
       return res;
     }
   }
