@@ -55,7 +55,7 @@ export default class UserService {
         createTime: new Date()
       });
       await user.save();
-      res.status(200).json({_id});
+      return this._send(res, 200, {_id});
     } catch (err) {
       this._logger.error('Error while register', err);
       next(err);
@@ -114,7 +114,7 @@ export default class UserService {
         {login: req.body.credentials}) || await this._userModel.findOne({email: req.body.credentials});
       if (user && await this._userModel.verify(req.body.password, user.salt, user.hash)) {
         const token = jwt.sign({sub: user.id}, this._config.secret, { expiresIn: '7d'});
-        res.status(200).json({ 
+        return this._send(res, 200, { 
           token, 
           id: user.id, 
           login: user.login, 
@@ -153,12 +153,11 @@ export default class UserService {
       if (!user) {
         throw new NotFoundError(`Не знайдено користувача ${userId}`);
       }
-      res.status(200).json({
+      return this._send(res, 200, {
         _id: user._id,
         login: user.login,
         articleCount: user.articleCount,
-        subscribers: user.subscribers
-      });
+        subscribers: user.subscribers});
     } catch (err) {
       this._logger.error('Error to get user', err);
       next(err);
@@ -177,7 +176,7 @@ export default class UserService {
       res.locals.user.subjectSubscriptions = _.uniqBy(res.locals.user.subjectSubscriptions, '_id');
       await this._userModel.updateUser(userId, {
         tagSubscriptions: res.locals.user.tagSubscriptions});
-      res.status(200).json({tagSubscriptions: res.locals.user.tagSubscriptions});
+      return this._send(res, 200, {tagSubscriptions: res.locals.user.tagSubscriptions});
     } catch (err) {
       this._logger.error('Error to add user subscribtion', err);
       next(err);
@@ -190,7 +189,7 @@ export default class UserService {
       const subscriptionId = req.params.subscriptionId;
       const tagSubscriptions = (res.locals.user.tagSubscriptions || []).filter(sub => sub._id !== subscriptionId);
       await this._userModel.updateUser(userId, {tagSubscriptions});
-      res.status(200).json({tagSubscriptions});
+      return this._send(res, 200, {tagSubscriptions});
     } catch (err) {
       this._logger.error('Error to remove user subscribtion', err);
       next(err);
@@ -209,7 +208,7 @@ export default class UserService {
       res.locals.user.subjectSubscriptions = _.uniqBy(res.locals.user.subjectSubscriptions, '_id');
       await this._userModel.updateUser(userId, {
         subjectSubscriptions: res.locals.user.subjectSubscriptions});
-      res.status(200).json({subjectSubscriptions: res.locals.user.subjectSubscriptions});
+      return this._send(res, 200, {subjectSubscriptions: res.locals.user.subjectSubscriptions});
     } catch (err) {
       this._logger.error('Error to add user subscribtion', err);
       next(err);
@@ -223,7 +222,7 @@ export default class UserService {
       const subjectSubscriptions = (res.locals.user.subjectSubscriptions || [])
         .filter(sub => sub._id !== subscriptionId);
       await this._userModel.updateUser(userId, {subjectSubscriptions});
-      res.status(200).json({subjectSubscriptions});
+      return this._send(res, 200, {subjectSubscriptions});
     } catch (err) {
       this._logger.error('Error to remove user subscribtion', err);
       next(err);
@@ -242,7 +241,7 @@ export default class UserService {
       res.locals.user.subjectSubscriptions = _.uniqBy(res.locals.user.subjectSubscriptions, '_id');
       await this._userModel.updateUser(userId, {
         userSubscriptions: res.locals.user.userSubscriptions});
-      res.status(200).json({userSubscriptions: res.locals.user.userSubscriptions});
+      return this._send(res, 200, {userSubscriptions: res.locals.user.userSubscriptions});
     } catch (err) {
       this._logger.error('Error to add user subscribtion', err);
       next(err);
@@ -255,73 +254,16 @@ export default class UserService {
       const subscriptionId = req.params.subscriptionId;
       const userSubscriptions = (res.locals.user.userSubscriptions || []).filter(sub => sub._id !== subscriptionId);
       await this._userModel.updateUser(userId, {userSubscriptions});
-      res.status(200).json({userSubscriptions});
+      return this._send(res, 200, {userSubscriptions});
     } catch (err) {
       this._logger.error('Error to remove user subscribtion', err);
       next(err);
     }
   }
-
-  // /**
-  //  * Add viewed article to user
-  //  */
-  // async addViewed(req, res, next) {
-  //   try {
-  //     await this._validateAddViewed(req);
-  //     const userId = res.locals.user._id;
-  //     let user = await this._userModel.findOne({_id: userId});
-  //     let article = await this._articleModel.findOne({_id: req.body.article});
-  //     if (user.viewed.indexOf(article._id) === -1) {
-  //       article.views++;
-  //       await article.save();
-  //       user.viewed.push(article._id);
-  //       await user.save();
-  //     }
-  //     return res.status(200).send();
-  //   } catch (err) {
-  //     this._logger.error('Error while add viewed article', err);
-  //     next(err);
-  //   }
-  // }
-
-  // async _validateAddViewed(req) {
-  //   try {
-  //     let validations = [
-  //       body('article')
-  //         .notEmpty().withMessage('Необхідно вказати статтю')
-  //         .custom((value) => {
-  //           let query = this._articleModel.findOne({ _id: value});
-  //           return query.exec().then(article => {
-  //             if (!article) {
-  //               return Promise.reject('Статті не знайдено');
-  //             }
-  //           });
-  //         })
-  //     ];
-  //     await this._validate(req, validations);
-  //   } catch (err) {
-  //     throw new ValidationError('Add viewed article error', err);
-  //   }
-  // }
-
-  // /**
-  //  * Get user viewed articles
-  //  */
-  // async getViewed(req, res, next) {
-  //   try {
-  //     const userId = res.locals.user._id;
-  //     let user = await this._userModel.findOne({_id: userId});
-  //     let articles = await this._articleModel.find({_id: {$in: user.viewed}});
-  //     for (let article of articles) {
-  //       let commentsCount = await this._commentModel.find({article: article._id}).count();
-  //       article.commentsCount = commentsCount;
-  //     }
-  //     return res.status(200).json({articles});
-  //   } catch (err) {
-  //     this._logger.error('Error while get viewed article', err);
-  //     next(err);
-  //   }
-  // }
+  
+  _send(res, status, data = {}, age = 300) {
+    return res.set('Cache-Control', `public, max-age=${age}`).status(status).json(data);
+  }
 
   async _validate(req, validations) {
     await Promise.all(validations.map(validation => validation.run(req)));
