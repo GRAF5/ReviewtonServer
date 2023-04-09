@@ -262,7 +262,7 @@ export default class UserService {
   }
   
   _send(res, status, data = {}, age = 300) {
-    return res.set(`Cache-Control', 'public, max-age=${age}`).status(status).json(data);
+    return res.set('Cache-Control', `public, max-age=${age}`).status(status).json(data);
   }
 
   async _validate(req, validations) {

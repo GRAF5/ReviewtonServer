@@ -530,7 +530,7 @@ export default class ContentService {
   }
 
   _send(res, status, data = {}, age = 300) {
-    return res.set(`Cache-Control', 'public, max-age=${age}`).status(status).json(data);
+    return res.set('Cache-Control', `public, max-age=${age}`).status(status).json(data);
   }
 
   _checkPagination(req, mLimit) {
