@@ -529,7 +529,7 @@ export default class ContentService {
     }
   }
 
-  _send(res, status, data = {}, age = 300) {
+  _send(res, status, data = {}, age = 5) {
     return res.set('Cache-Control', `public, max-age=${age}`).status(status).json(data);
   }
 
