@@ -37,6 +37,7 @@ export default class ContentService {
     this._subjectModel = subjectModel.Subject;
     if (config.aws) {
       this._s3 = new S3Client({
+        endpoint: config.aws.endpoint,
         region: config.aws.region,
         credentials: {
           accessKeyId: config.aws.accessKeyId,
