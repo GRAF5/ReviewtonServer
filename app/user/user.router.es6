@@ -150,6 +150,12 @@ export default class UserRouter {
         this._userService.addUserSubscription.bind(this._userService))
       .delete(this._authorization.authorize(undefined, true),
         this._userService.removeUserSubscription.bind(this._userService));
+    
+    router.route('/user/current')
+      .put(this._authorization.authorize(undefined, true),
+        this._userService.updateUser.bind(this._userService));
+
+
     // router.route('/user/:id/viewed')
     //   .get(this._authorization.authorize(),
     //     this._userService.getViewed.bind(this._userService))

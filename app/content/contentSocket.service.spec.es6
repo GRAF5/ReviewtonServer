@@ -8,6 +8,7 @@ import Service from '../server.es6';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import * as uuid from 'uuid';
+import argon2d from 'argon2';
 
 const config = {
   port: 3030,
@@ -52,7 +53,8 @@ describe('ContentSocketService', () => {
     await app.start(config);
     contentSocketService = app._container.resolve('contentSocketService');
     client = io('http://localhost:3030/');
-    token = jwt.sign({sub: userParams._id}, config.secret, {expiresIn: '7d'});
+    token = jwt.sign({sub: userParams._id, token: await argon2d.hash(`${userParams.login}${userParams.hash}`)},
+      config.secret, {expiresIn: '7d'});
   });
 
   beforeEach(async () => {

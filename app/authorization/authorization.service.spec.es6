@@ -7,6 +7,7 @@ import should from 'should';
 import log4js from 'log4js';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
+import argon2 from 'argon2';
 
 /**
  * @test AuthorizationService
@@ -65,7 +66,8 @@ describe('AuthorizationService', () => {
 
     beforeEach(async () => {
       await mongoose.models['User'].create(user);
-      token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
+      token = jwt.sign({sub: user._id, token: await argon2.hash(`${user.login}${user.hash}`)}, 
+        conf.secret, {expiresIn: '7d'});
     });
 
     it('should return authorization type error', async () => {
@@ -111,6 +113,16 @@ describe('AuthorizationService', () => {
       res.body.message.should.be.eql('User with id 2 not found');
     });
 
+    it('should return 401 for unauthorized token', async () => {
+      token = jwt.sign({sub: user._id, token: await argon2.hash(`${user.login}${user.hash}bad`)}, 
+        conf.secret, {expiresIn: '7d'});
+      let res = await request(server)
+        .get('/authorization/current')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(401);
+      res.body.message.should.be.eql('Unathorized');
+    });
+
     it('should return user', async () => {
       let res = await request(server)
         .get('/authorization/current')
@@ -118,7 +130,8 @@ describe('AuthorizationService', () => {
         .expect(200);
       res.body.should.be.eql({
         token,
-        id: user._id,
+        _id: user._id,
+        description: '',
         login: user.login,
         email: user.email,
         role: user.role,
@@ -142,16 +155,20 @@ describe('AuthorizationService', () => {
 
     it('should return error for token', async () => {
       let next = sandbox.spy();
-      await authorize({headers: {}}, {}, next);
+      let locals = {};
+      await authorize({headers: {}}, {locals}, next);
       next.called.should.be.eql(true);
+      should(locals.user).undefined();
     });
 
     it('should return forbidden error when the method is not available', async () => {
       authorize = authorization.authorize('method');
       sandbox.stub(authorization, '_checkToken').returns({user: {permissions: []}});
       let next = sandbox.spy();
-      await authorize({headers: {}}, {}, next);
+      let locals = {};
+      await authorize({headers: {}}, {locals}, next);
       next.called.should.be.eql(true);
+      should(locals.user).undefined();
     });
 
     it('should authorize user with method', async () => {

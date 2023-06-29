@@ -22,6 +22,14 @@ export default class Database {
    */
   async connect() {
     try {
+      // if (process.env.NODE_ENV !== 'production') {
+      //   const {MongoMemoryReplSet} = require('mongodb-memory-server');
+      //   const mongodb = await MongoMemoryReplSet.create({replSet: {
+      //     count: 1,
+      //     storageEngine: 'wiredTiger'
+      //   }});
+      //   this._config.db.url = await mongodb.getUri();
+      // } 
       await mongoose.connect(this._config.db.url, this._config.db.options);
       mongoose.connection.on('error', (err) => {
         this._logger.error('Connection error', err);
