@@ -6,6 +6,8 @@ import sinon from 'sinon';
 import log4js from 'log4js';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
+import argon2d from 'argon2';
+import should from 'should';
 
 /**
  * @test UserService
@@ -278,147 +280,275 @@ describe('UserService', () => {
     });
   });
 
-  // /**
-  //  * @test UserService#addViewed
-  //  */
-  // describe('addViewed', () => {
-  //   const user = {
-  //     _id: '1',
-  //     email: 'test@test.com',
-  //     login: 'login',
-  //     salt: 'e2996430759b75a241dcdc846605c227',
-  //     // eslint-disable-next-line max-len
-  //     hash: 
-  //      '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460' + 
-  //      'c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
-  //     //password: 'QwerTY123456'
-  //   };
-  //   const subject = {
-  //     _id: '1',
-  //     name: 'Subject'
-  //   };  
-  //   let article = {
-  //     _id: '1',
-  //     rating: 5,
-  //     text: 'Article',
-  //     user: user._id,
-  //     subject: subject._id,
-  //     createTime: Date.now(),
-  //     comments: []
-  //   };
-  //   let params;
-  //   let token;
-  //   beforeEach(async () => {
-  //     await mongoose.models['User'].create(user);
-  //     await mongoose.models['Subject'].create(subject);
-  //     await mongoose.models['Article'].create(article);
-  //     params = {
-  //       article: article._id
-  //     };
-  //     token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
-  //   });
+  /**
+   * @test UserService#updateUser
+   */
+  describe('updateUser', () => {
+    let token;
+    const user = {
+      _id: '1',
+      email: 'test@test.com',
+      login: 'login',
+      salt: 'e2996430759b75a241dcdc846605c227',
+      // eslint-disable-next-line max-len
+      hash: '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
+      //password: 'QwerTY123456'
+    };
 
-  //   it('should return article validation error when article is undefined', async () => {
-  //     delete params.article;
-  //     await request(server)
-  //       .put('/user/1/viewed')
-  //       .send(params)
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(400);
-  //   });
+    beforeEach(async () => {
+      await mongoose.models['User'].create(user);
+      token = jwt.sign({sub: user._id, token: await argon2d.hash(`${user.login}${user.hash}`)},
+        conf.secret, {expiresIn: '7d'});
+    });
 
-  //   it('should return return not found for not existed article', async () => {
-  //     params.article = '2';
-  //     await request(server)
-  //       .put('/user/1/viewed')
-  //       .send(params)
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(400);
-  //   });
+    it('should return unathorized for bad token', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          description: ''
+        })
+        .set('Authorization', 'Bearer token')
+        .expect(400);
+    });
 
-  //   it('should add viewed article', async () => {
-  //     await request(server)
-  //       .put('/user/1/viewed')
-  //       .send(params)
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(200);
-  //     let us = await mongoose.models['User'].findById(user._id).lean();
-  //     us.viewed.should.be.eql([params.article]);
-  //     let art = await mongoose.models['Article'].findById(params.article).lean();
-  //     art.views.should.be.eql(1);
-  //   });
+    it('should validate email not empty update', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          email: ''
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
 
-  //   it('should not add already viewed articles', async () => {
-  //     await mongoose.models['User'].updateOne({_id: user._id}, {viewed: [article._id]});
-  //     await mongoose.models['Article'].updateOne({_id: params.article}, {views: 1});
-  //     await request(server)
-  //       .put('/user/1/viewed')
-  //       .send(params)
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(200);
-  //     let us = await mongoose.models['User'].findById(user._id).lean();
-  //     us.viewed.should.be.eql([params.article]);
-  //     let art = await mongoose.models['Article'].findById(params.article).lean();
-  //     art.views.should.be.eql(1);
-  //   });
-  // });
+    it('should validate email update', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          email: 'test'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
 
-  // /**
-  //  * @test UserService#getViewed
-  //  */
-  // describe('getViewed', () => {
-  //   const user = {
-  //     _id: '1',
-  //     email: 'test@test.com',
-  //     login: 'login',
-  //     salt: 'e2996430759b75a241dcdc846605c227',
-  //     // eslint-disable-next-line max-len
-  //     hash: 
-  //      '2ef725a0fb2fcda3d8632c5a110625c8c70de406bfcfeceb2225ea47973e301480f76ea460' + 
-  //      'c67490c89b2624e3cb16608fdc86321b0188cc43572cf65e28e310'
-  //     //password: 'QwerTY123456'
-  //   };
-  //   const subject = {
-  //     _id: '1',
-  //     name: 'Subject'
-  //   };  
-  //   let article = {
-  //     _id: '1',
-  //     rating: 5,
-  //     text: 'Article',
-  //     user: user._id,
-  //     subject: subject._id,
-  //     createTime: Date.now()
-  //   };
-  //   let token;
+    it('should validate unique email update', async () => {
+      await mongoose.models['User'].create({...user, _id:2, email: 'another@test.com'});
+      await request(server)
+        .put('/user/current')
+        .send({
+          email: 'another@test.com'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
 
-  //   beforeEach(async () => {
-  //     await mongoose.models['User'].create(user);
-  //     await mongoose.models['Subject'].create(subject);
-  //     await mongoose.models['Article'].create(article);
-  //     token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
-  //   });
+    it('should update email', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          email: 'another@test.com'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let new_user = await mongoose.models['User'].findOne({email: 'another@test.com'}).lean();
+      should(new_user).not.Null();
+    });
 
-  //   it('should get empty array if user not have viewed adricles', async () => {
-  //     let res = await request(server)
-  //       .get('/user/1/viewed')
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(200);
-  //     res.body.should.be.eql({articles: []});
-  //   });
+    it('should validate login not empty update', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          login: ''
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
 
-  //   it('should get viewed adricles', async () => {
-  //     await mongoose.models['User'].updateOne({_id: user._id}, {viewed: [article._id]});
-  //     let res = await request(server)
-  //       .get('/user/1/viewed')
-  //       .set('Authorization', `Bearer ${token}`)
-  //       .expect(200);
-  //     res.body.should.be.eql(
-  //       {articles: [{
-  //         ...article, 
-  //         createTime: res.body.articles[0].createTime, 
-  //         tags: [], 
-  //         views: 0, likes: 0, dislikes: 0, commentsCount: 0}]});
-  //   });
-  // });
+    it('should validate login min length update', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          login: 'log'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should validate login max length update', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          login: 'logloglogloglogloglog'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should validate login match update', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          login: 'log@'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should validate login unique update', async () => {
+      await mongoose.models['User'].create({...user, _id:2, login: 'login2'});
+      await request(server)
+        .put('/user/current')
+        .send({
+          login: 'login2'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should update login', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          login: 'login2'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let new_user = await mongoose.models['User'].findOne({login: 'login2'}).lean();
+      should(new_user).not.Null();
+    });
+
+    it('should validate pasword not empty', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          password: '',
+          newPassword: '321Qwerty',
+          newPasswordRepeat: '321Qwerty'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should validate newPassword not empty', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          password: 'QwerTY123456',
+          newPassword: '',
+          newPasswordRepeat: '321Qwerty'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should validate newPassword have numbers', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          password: 'QwerTY123456',
+          newPassword: 'Qwertyuiopasdf',
+          newPasswordRepeat: 'Qwertyuiopasdf'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should validate newPassword have small latin', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          password: 'QwerTY123456',
+          newPassword: '123456QWERTY',
+          newPasswordRepeat: '123456QWERTY'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should validate newPassword have big latin', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          password: 'QwerTY123456',
+          newPassword: '12345qwerty',
+          newPasswordRepeat: '12345qwerty'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should validate newPassword have 8 symbols', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          password: 'QwerTY123456',
+          newPassword: '12Qwe',
+          newPasswordRepeat: '12Qwe'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should validate newPasswordRepeat not empty', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          password: 'QwerTY123456',
+          newPassword: '321Qwerty',
+          newPasswordRepeat: ''
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should validate newPassword equal newPasswordRepeat empty', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          password: 'QwerTY123456',
+          newPassword: '321Qwerty',
+          newPasswordRepeat: '321QwertyBad'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should change password', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          password: 'QwerTY123456',
+          newPassword: '321Qwerty',
+          newPasswordRepeat: '321Qwerty'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let new_user = await mongoose.models['User'].findOne({login: 'login'}).lean();
+      should(new_user.hash).not.eql(user.hash);
+      should(new_user.salt).not.eql(user.salt);
+    });
+
+    it('should validate description max length', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          description: 'Descr'.repeat(128)
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+    });
+
+    it('should change description', async () => {
+      await request(server)
+        .put('/user/current')
+        .send({
+          description: 'Description'
+        })
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      let new_user = await mongoose.models['User'].findOne({description: 'Description'}).lean();
+      console.log(new_user);
+      should(new_user.description).eql('Description');
+    });
+  });
 });

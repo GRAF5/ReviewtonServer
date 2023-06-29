@@ -119,7 +119,7 @@ export default class ContentSocketService {
           user.viewed[data.article] = {};
           await this._userModel.updateUser(user._id, {viewed: user.viewed});
           let article = await this._articleModel.findById(data.article);
-          article.views = article.views + 1;
+          article.views = (article?.views || 0) + 1;
           await article.save();
         }
       }

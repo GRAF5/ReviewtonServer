@@ -2,9 +2,8 @@
 
 import log4js from 'log4js';
 import jwt from 'jsonwebtoken';
-import { NotFoundError } from '../errorHandler/errorHandler.es6';
-import { BadRequestError } from '../errorHandler/errorHandler.es6';
-import { ForbiddenError } from '../errorHandler/errorHandler.es6';
+import { NotFoundError, BadRequestError, ForbiddenError, UnauthorizedError } from '../errorHandler/errorHandler.es6';
+import argon2 from 'argon2';
 
 export default class AuthorizationService {
 
@@ -22,10 +21,11 @@ export default class AuthorizationService {
       const {token, user} = await this._checkToken(req.headers.authorization);
       return this._send(res, 200, {
         token,
-        id: user._id,
+        _id: user._id,
         login: user.login,
         email: user.email,
         role: user.role,
+        description: user.description,
         tagSubscriptions: user.tagSubscriptions,
         subjectSubscriptions: user.subjectSubscriptions,
         userSubscriptions: user.userSubscriptions});
@@ -54,6 +54,11 @@ export default class AuthorizationService {
     };
   }
 
+  /**
+   * Authorization middleware for websocket
+   * @param {String} method method to require
+   * @returns {Function(context, next)} Authorization middleware
+   */
   wsAuthorize(method) {
     return async (context, next) => {
       try {
@@ -78,22 +83,39 @@ export default class AuthorizationService {
     }
   }
 
+  // eslint-disable-next-line complexity
   async _checkToken(authorization, isRequired = true) {
     try {
       const [type, token] = (authorization || '').split(' ');
       if (type !== 'Bearer') {
         throw new BadRequestError('Wrong authorization type');
       }
-      const data = jwt.decode(token, {json: true});
-      if (data.exp * 1000 <= Date.now()) {
+      let data; 
+      try {
+        data = jwt.decode(token, {json: true});
+      } catch {
+        throw new BadRequestError('Wrong authorization type');
+      }
+      try {
+        if (data.exp * 1000 <= Date.now()) {
+          throw 'Token expired';
+        }
+      } catch {
         throw new BadRequestError('Token expired');
       }
       if (!data.sub) {
         throw new BadRequestError('Wrong id');
       }
-      const user = await this._userModel.getUserById(data.sub);
+      const user = await this._userModel.getUserByIdOrCredentials(data.sub);
       if (!user) {
         throw new NotFoundError(`User with id ${data.sub} not found`);
+      }
+      try {
+        if (!await argon2.verify(data.token, `${user.login}${user.hash}`)) {
+          throw 'Unathorized';
+        }
+      } catch {
+        throw new UnauthorizedError('Unathorized');
       }
       return {token, user};
     } catch (err) {
@@ -103,6 +125,12 @@ export default class AuthorizationService {
         return {};
       }
     }
+  }
+
+  async createJWT(id) {
+    const user = await this._userModel.findById(id);
+    const token = (await argon2.hash(`${user.login}${user.hash}`));
+    return jwt.sign({sub: id, token}, this._config.secret, { expiresIn: '7d'});
   }
   
   _send(res, status, data = {}, age = 5) {

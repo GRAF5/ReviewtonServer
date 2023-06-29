@@ -20,6 +20,7 @@ export default class UserModel {
       permissions: {type: [String], default: []},
       viewed: {type: Object, default: {}},
       reactions: {type: Object, default: {}},
+      description: {type: String, default: ''},
       tagSubscriptions: [{type: Schema.Types.String, ref: 'Tag', default: []}],
       subjectSubscriptions: [{type: Schema.Types.String, ref: 'Subject', default: []}],
       userSubscriptions: [{type: Schema.Types.String, ref: 'User', default: []}]
@@ -52,7 +53,7 @@ export default class UserModel {
     };
     schema.statics.getAritcleReactions = getAritcleReactions;
     schema.statics.updateUser = updateUser;
-    schema.statics.getUserById = getUserById;
+    schema.statics.getUserByIdOrCredentials = getUserByIdOrCredentials;
     this._model = mongoose.model('User', schema);
 
     async function getAritcleReactions(articleId) {
@@ -64,10 +65,16 @@ export default class UserModel {
       await this.updateOne({_id}, data);
     }
 
-    async function getUserById(id) {
+    async function getUserByIdOrCredentials(value) {
       let res = await this.aggregate([
         {
-          $match: {_id: id}
+          $match: {
+            $or: [
+              {_id: value},
+              {login: value},
+              {email: value}
+            ]
+          }
         },
         {
           $lookup: {

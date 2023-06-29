@@ -57,7 +57,7 @@ export default class TagModel {
           }
         }
       ])
-        .sort('-articleCount')
+        .sort({articleCount: -1, name: 1})
         .skip(offset)
         .limit(limit);
       return res;

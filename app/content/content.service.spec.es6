@@ -13,6 +13,8 @@ import {sdkStreamMixin} from '@aws-sdk/util-stream-node';
 import {Readable} from 'stream';
 import fs from 'fs';
 import crypto from 'crypto';
+import * as fetch from 'node-fetch';
+import argon2d from 'argon2';
 
 /**
  * @test ContentService
@@ -24,6 +26,9 @@ describe('ContentService', () => {
       url: 'mongodb://127.0.0.1:27017/reviewton-tests'
     },
     aws: {
+      accessKeyId: 'accessKeyId',
+      secretAccessKey: 'secretAccessKey',
+      api: 'https://api/',
       bucket: 'bucket'
     },
     secret: 'test',
@@ -64,7 +69,16 @@ describe('ContentService', () => {
     contentService = app._container.resolve('contentService');
   });
 
-  beforeEach(() => {    
+  beforeEach(() => {
+    sandbox.stub(fetch, 'default').resolves({
+      json: async () => {
+        return {
+          authorizationToken: 'authorizationToken',
+          allowed: {
+            bucketId: 'bucketId'
+          }};
+      }
+    });
     s3Mock = mockClient(S3Client);
     sandbox.useFakeTimers({toFake: ['Date'], now: Date.parse('2022-09-03T16:38:05.447Z')});
   });
@@ -470,7 +484,8 @@ describe('ContentService', () => {
         subject: 'Subject',
         rating: 3
       };
-      token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
+      token = jwt.sign({sub: user._id, token: await argon2d.hash(`${user.login}${user.hash}`)},
+        conf.secret, {expiresIn: '7d'});
     });
 
     it('should return user validation error when subject is undefined', async () => {
@@ -684,11 +699,13 @@ describe('ContentService', () => {
       await mongoose.models['Subject'].create(subject);
       await mongoose.models['Article'].create(article);
       await mongoose.models['Article'].create({...article, _id: '12', user: '2', rating: 2});
-      token = jwt.sign({sub: user._id}, conf.secret, {expiresIn: '7d'});
+      token = jwt.sign({sub: user._id, token: await argon2d.hash(`${user.login}${user.hash}`)},
+        conf.secret, {expiresIn: '7d'});
     });
 
     it('should return UnauthorizedError if auth wrong user', async () => {
-      let wrongToken = jwt.sign({sub: '2'}, conf.secret, {expiresIn: '7d'});
+      let wrongToken = jwt.sign({sub: '2', token: await argon2d.hash(`${user.login}${user.hash}`)}, 
+        conf.secret, {expiresIn: '7d'});
       await mongoose.models['User'].create({...user, _id: '2'});
       await request(server)
         .put('/content/articles/1')
@@ -1046,71 +1063,30 @@ describe('ContentService', () => {
     });
 
     it('should get article image from s3', async () => {
-      let image = fs.readFileSync('app/content/test/image.png');
-      const stream = new Readable();
-      stream.push(image);
-      stream.push(null);
-      const sdkStream = sdkStreamMixin(stream);
-      s3Mock.on(GetObjectCommand).resolves({Body: sdkStream}); 
       let data = {
         _id: '1',
         images: {'hash': 's3key.png'},
-        text: '<img src=hash>'
+        text: '<img src=hash>',
+        user: {
+          _id: 'u_id'
+        },
+        subject: {
+          name: 'subject'
+        }
       };
       let article = await contentService._articleSetData(data, {});
       should(article).be.eql({
         _id: '1',
         likes: 0,
         dislikes: 0,
-        text: `<img src="data:image/png;base64,${image.toString('base64')}" alt="">`
-      });
-      should(s3Mock.calls().length).be.eql(1);
-      should(contentService._images).be.eql({
-        'hash': {
-          base64: image.toString('base64'),
-          time: Date.now()
-        }
-      });
-    });
-
-    it('should get article image from cache and update time', async () => {
-      let user = await new mongoose.models['User']({...userParams, reactions: {'1': false}}).save();
-      let image = fs.readFileSync('app/content/test/image.png');
-      const stream = new Readable();
-      stream.push(image);
-      stream.push(null);
-      const sdkStream = sdkStreamMixin(stream);
-      s3Mock.on(GetObjectCommand).resolves({Body: sdkStream}); 
-      let data = {
-        _id: '1',
-        images: {'hash': 's3key.png'},
-        text: '<img src=hash><img src=hash>'
-      };
-      contentService._images = {
-        'hash': {
-          base64: image.toString('base64'),
-          time: Date.now() - 1000
+        user: {
+          _id: 'u_id'
         },
-        'timedout': {
-          base64: image.toString('base64'),
-          time: Date.now() - conf.imageCachingTimeInMinutes * 60 * 1000 - 1
-        }
-      };
-      let article = await contentService._articleSetData(data, {locals:{user: {_id: '1'}}});
-      should(article).be.eql({
-        _id: '1',
-        likes: 0,
-        dislikes: 1,
-        userReaction: false,
-        text: `<img src="data:image/png;base64,${image.toString('base64')}" alt="">` +
-        `<img src="data:image/png;base64,${image.toString('base64')}" alt="">`
-      });
-      should(s3Mock.calls().length).be.eql(0);
-      should(contentService._images).be.eql({
-        'hash': {
-          base64: image.toString('base64'),
-          time: Date.now()
-        }
+        subject: {
+          name: 'subject'
+        },
+        text: `<img itemprop="image" src="${conf.aws.api}file/${conf.aws.bucket}/s3key.png" ` +
+          `alt="${article.subject.name}">`
       });
     });
   });

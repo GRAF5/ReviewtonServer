@@ -63,7 +63,7 @@ export default class SubjectModel {
           }
         }
       ])
-        .sort('-articleCount')
+        .sort('-articleCount name')
         .skip(offset)
         .limit(limit);
       return res;

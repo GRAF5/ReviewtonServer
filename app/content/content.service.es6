@@ -12,6 +12,7 @@ import sizeOf from 'buffer-image-size';
 import crypto from 'crypto';
 import path from 'path';
 import htmlValidator from 'html-validator';
+import fetch from 'node-fetch';
 
 /**
  * Class for content request
@@ -47,7 +48,6 @@ export default class ContentService {
       this._bucketName = config.aws.bucket;
     }
     this._logger = log4js.getLogger('ContentService');
-    this._images = {};
   }
 
   /**
@@ -114,31 +114,14 @@ export default class ContentService {
     article.likes = likes;
     article.dislikes = dislikes;
     for (let hash of Object.keys(article.images || {})) {
-      let base64 = this._images[hash]?.time ? this._images[hash]?.base64 : 
-        await (await this._s3.send(new GetObjectCommand({
-          Bucket: this._bucketName,
-          Key: article.images[hash]
-        }))).Body.transformToString('base64');
-      this._images[hash] = {
-        base64,
-        time: Date.now()
-      };
-      let type = path.extname(article.images[hash]);
       article.text = article.text.replace(
-        new RegExp(`<img src=${hash}>`, 'g'), `<img src="data:image/${type.slice(1, type.length)};` +
-        `base64,${this._images[hash].base64}" alt="">`);
+        new RegExp(`<img src=${hash}>`, 'g'), 
+        `<img itemprop="image" src="${this._config.aws.api}file/${this._bucketName}/${article.images[hash]}" ` + 
+        `alt="${article.subject.name}">`
+      );
     }
     delete article.images;
-    this._freeImages();
     return article;
-  }
-
-  _freeImages() {
-    for (let hash of Object.keys(this._images)) {
-      if (Date.now() - this._images[hash].time > this._config.imageCachingTimeInMinutes * 60 * 1000) {
-        delete this._images[hash];
-      }
-    }
   }
 
   /**
@@ -535,8 +518,8 @@ export default class ContentService {
   }
 
   _checkPagination(req, mLimit) {
-    let limit = req.query.limit ? +((+req.query.limit).toFixed()) : mLimit ? mLimit : 200;
-    let offset = req.query.offset ? +((+req.query.offset).toFixed()) : 0;
+    let limit = _.defaultTo(+((+req.query.limit).toFixed()) || mLimit, 200);
+    let offset = _.defaultTo(+((+req.query.offset)?.toFixed()), 0);
     if (limit < 1) {
       limit = 1;
     }
