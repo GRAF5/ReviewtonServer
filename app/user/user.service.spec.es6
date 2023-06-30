@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import argon2d from 'argon2';
 import should from 'should';
+import crypto from 'crypto';
 
 /**
  * @test UserService
@@ -297,8 +298,9 @@ describe('UserService', () => {
 
     beforeEach(async () => {
       await mongoose.models['User'].create(user);
-      token = jwt.sign({sub: user._id, token: await argon2d.hash(`${user.login}${user.hash}`)},
-        conf.secret, {expiresIn: '7d'});
+      token = jwt.sign({sub: user._id, 
+        token: crypto.createHmac('sha512', user.salt).update(`${user.login}${user.hash}`).digest('hex')},
+      conf.secret, {expiresIn: '7d'});
     });
 
     it('should return unathorized for bad token', async () => {
@@ -547,7 +549,6 @@ describe('UserService', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
       let new_user = await mongoose.models['User'].findOne({description: 'Description'}).lean();
-      console.log(new_user);
       should(new_user.description).eql('Description');
     });
   });

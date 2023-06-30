@@ -484,8 +484,9 @@ describe('ContentService', () => {
         subject: 'Subject',
         rating: 3
       };
-      token = jwt.sign({sub: user._id, token: await argon2d.hash(`${user.login}${user.hash}`)},
-        conf.secret, {expiresIn: '7d'});
+      token = jwt.sign({sub: user._id, 
+        token: crypto.createHmac('sha512', user.salt).update(`${user.login}${user.hash}`).digest('hex')},
+      conf.secret, {expiresIn: '7d'});
     });
 
     it('should return user validation error when subject is undefined', async () => {
@@ -699,13 +700,15 @@ describe('ContentService', () => {
       await mongoose.models['Subject'].create(subject);
       await mongoose.models['Article'].create(article);
       await mongoose.models['Article'].create({...article, _id: '12', user: '2', rating: 2});
-      token = jwt.sign({sub: user._id, token: await argon2d.hash(`${user.login}${user.hash}`)},
-        conf.secret, {expiresIn: '7d'});
+      token = jwt.sign({sub: user._id, 
+        token: crypto.createHmac('sha512', user.salt).update(`${user.login}${user.hash}`).digest('hex')},
+      conf.secret, {expiresIn: '7d'});
     });
 
     it('should return UnauthorizedError if auth wrong user', async () => {
-      let wrongToken = jwt.sign({sub: '2', token: await argon2d.hash(`${user.login}${user.hash}`)}, 
-        conf.secret, {expiresIn: '7d'});
+      let wrongToken = jwt.sign({sub: '2', 
+        token: crypto.createHmac('sha512', user.salt).update(`${user.login}${user.hash}`).digest('hex')}, 
+      conf.secret, {expiresIn: '7d'});
       await mongoose.models['User'].create({...user, _id: '2'});
       await request(server)
         .put('/content/articles/1')
