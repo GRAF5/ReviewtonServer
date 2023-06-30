@@ -8,6 +8,7 @@ import log4js from 'log4js';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import argon2 from 'argon2';
+import crypto from 'crypto';
 
 /**
  * @test AuthorizationService
@@ -66,8 +67,9 @@ describe('AuthorizationService', () => {
 
     beforeEach(async () => {
       await mongoose.models['User'].create(user);
-      token = jwt.sign({sub: user._id, token: await argon2.hash(`${user.login}${user.hash}`)}, 
-        conf.secret, {expiresIn: '7d'});
+      token = jwt.sign({sub: user._id, 
+        token: crypto.createHmac('sha512', user.salt).update(`${user.login}${user.hash}`).digest('hex')}, 
+      conf.secret, {expiresIn: '7d'});
     });
 
     it('should return authorization type error', async () => {
@@ -114,8 +116,9 @@ describe('AuthorizationService', () => {
     });
 
     it('should return 401 for unauthorized token', async () => {
-      token = jwt.sign({sub: user._id, token: await argon2.hash(`${user.login}${user.hash}bad`)}, 
-        conf.secret, {expiresIn: '7d'});
+      token = jwt.sign({sub: user._id, 
+        token: crypto.createHmac('sha512', user.salt).update(`${user.login}${user.hash}bad`).digest('hex')}, 
+      conf.secret, {expiresIn: '7d'});
       let res = await request(server)
         .get('/authorization/current')
         .set('Authorization', `Bearer ${token}`)

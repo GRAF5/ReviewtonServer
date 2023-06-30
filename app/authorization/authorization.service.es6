@@ -4,6 +4,7 @@ import log4js from 'log4js';
 import jwt from 'jsonwebtoken';
 import { NotFoundError, BadRequestError, ForbiddenError, UnauthorizedError } from '../errorHandler/errorHandler.es6';
 import argon2 from 'argon2';
+import crypto from 'crypto';
 
 export default class AuthorizationService {
 
@@ -111,7 +112,8 @@ export default class AuthorizationService {
         throw new NotFoundError(`User with id ${data.sub} not found`);
       }
       try {
-        if (!await argon2.verify(data.token, `${user.login}${user.hash}`)) {
+        let hash = crypto.createHmac('sha512', user.salt).update(`${user.login}${user.hash}`).digest('hex');
+        if (data.token !== hash) {
           throw 'Unathorized';
         }
       } catch {
@@ -129,7 +131,8 @@ export default class AuthorizationService {
 
   async createJWT(id) {
     const user = await this._userModel.findById(id);
-    const token = (await argon2.hash(`${user.login}${user.hash}`));
+    const token = crypto.createHmac('sha512', user.salt).update(`${user.login}${user.hash}`).digest('hex');
+    //(await argon2.hash(`${user.login}${user.hash}`));
     return jwt.sign({sub: id, token}, this._config.secret, { expiresIn: '7d'});
   }
   
